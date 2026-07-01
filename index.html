@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Эко-Карта Худжанда</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <script>
+        // Координаты центра Худжанда
+        const khujandCoords = [40.2833, 69.6167];
+        
+        // Инициализация карты
+        const map = L.map('map').setView(khujandCoords, 14);
+
+        // Подключаем бесплатные карты OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Включаем геолокацию пользователя
+        map.locate({setView: true, maxZoom: 16});
+
+        // Функция, если геолокация успешно найдена
+        function onLocationFound(e) {
+            const radius = e.accuracy / 2;
+            L.marker(e.latlng).addTo(map)
+                .bindPopup("Вы находитесь в радиусе " + radius + " метров от этой точки").openPopup();
+            L.circle(e.latlng, radius).addTo(map);
+        }
+        map.on('locationfound', onLocationFound);
+
+        // Если геолокацию определить не удалось
+        function onLocationError(e) {
+            alert("Не удалось определить ваше местоположение: " + e.message);
+        }
+        map.on('locationerror', onLocationError);
+
+
+        // --- НАШИ ТОЧКИ (Мусорные баки и урны) ---
+        
+        // Точка 1: Мусорный бак лукмони хаким
+        const bin1 = L.marker([40.299929, 69.620699]).addTo(map);
+        bin1.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
+
+        // Точка 2: Уличная урна лукмони хаким
+        const bin2 = L.marker([40.299659, 69.620296]).addTo(map);
+        bin2.bindPopup("<b>Уличная урна</b><br>Рядом со скамейкой");
+
+        // Точка 3: Уличная урна лукмони хаким
+        const bin3 = L.marker([40.299659, 69.620296]).addTo(map);
+        bin3.bindPopup("<b>Уличная урна</b><br>Рядом со скамейкой");
+    </script>
+</body>
+</html>
