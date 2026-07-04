@@ -31,6 +31,26 @@
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
+        // Стиль для обычных УЛИЧНЫХ УРН (Синие маленькие кружки)
+    const urnStyle = {
+        radius: 8,
+        fillColor: "#0074D9", // Синий цвет
+        color: "#ffffff",
+        weight: 2,
+        opacity: 1,
+        fillOpacity: 0.8
+    };
+
+    // Стиль для БОЛЬШИХ БАКОВ / КОНТЕЙНЕРОВ (Зеленые круги побольше)
+    const containerStyle = {
+        radius: 12,
+        fillColor: "#2ECC40", // Зеленый цвет
+        color: "#ffffff",
+        weight: 2,
+        opacity: 1,
+        fillOpacity: 0.9
+    };
+
         // Включаем геолокацию пользователя
         map.locate({setView: true, maxZoom: 16});
 
@@ -53,39 +73,39 @@
         // --- НАШИ ТОЧКИ (Мусорные баки и урны) ---
         
         // Точка 1: Мусорный бак лукмони хаким
-        const bin1 = L.marker([40.299929, 69.620699]).addTo(map);
+        const bin1 = L.marker([40.299929, 69.620699, containerStyle).addTo(map);
         bin1.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
 
         // Точка 2: Уличная урна лукмони хаким
-        const bin2 = L.marker([40.299659, 69.620296]).addTo(map);
+        const bin2 = L.marker([40.299659, 69.620296], urnStyle).addTo(map);
         bin2.bindPopup("<b>Уличная урна</b><br>Рядом со скамейкой");
 
         // Точка 4: Мусорный бак jordan
-        const bin4 = L.marker([40.295390, 69.619887]).addTo(map);
+        const bin4 = L.marker([40.295390, 69.619887], containerStyle).addTo(map);
         bin4.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
 
         // Точка 5: Мусорный бак jordan
-        const bin5 = L.marker([40.299663, 69.617160]).addTo(map);
+        const bin5 = L.marker([40.299663, 69.617160], containerStyle).addTo(map);
         bin5.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
 
         // Точка 6: Уличная урна лукмони хаким
-        const bin6 = L.marker([40.297905, 69.615246]).addTo(map);
+        const bin6 = L.marker([40.297905, 69.615246], urnStyle).addTo(map);
         bin6.bindPopup("<b>Уличная урна</b><br>Рядом со светофором");
 
         // Точка 7: Мусорный бак jordan
-        const bin7 = L.marker([40.290171, 69.591860]).addTo(map);
+        const bin7 = L.marker([40.290171, 69.591860], containerStyle).addTo(map);
         bin7.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
 
         // Точка 8: Мусорный бак jordan
-        const bin8 = L.marker([40.294807, 69.594147]).addTo(map);
+        const bin8 = L.marker([40.294807, 69.594147], containerStyle).addTo(map);
         bin8.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
 
         // Точка 9: Мусорный бак jordan
-        const bin9 = L.marker([40.295446, 69.590084]).addTo(map);
+        const bin9 = L.marker([40.295446, 69.590084], containerStyle).addTo(map);
         bin9.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
 
         // Точка 10: Мусорный бак jordan
-        const bin10 = L.marker([40.292341, 69.592556]).addTo(map);
+        const bin10 = L.marker([40.292341, 69.592556], containerStyle).addTo(map);
         bin10.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
 
 
