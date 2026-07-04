@@ -32,82 +32,95 @@
         }).addTo(map);
 
         // Стиль для обычных УЛИЧНЫХ УРН (Синие маленькие кружки)
-    const urnStyle = {
-        radius: 8,
-        fillColor: "#0074D9", // Синий цвет
-        color: "#ffffff",
-        weight: 2,
-        opacity: 1,
-        fillOpacity: 0.8
-    };
+        const urnStyle = {
+            radius: 8,
+            fillColor: "#0074D9", // Синий цвет
+            color: "#ffffff",
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.8
+        };
 
-    // Стиль для БОЛЬШИХ БАКОВ / КОНТЕЙНЕРОВ (Зеленые круги побольше)
-    const containerStyle = {
-        radius: 12,
-        fillColor: "#2ECC40", // Зеленый цвет
-        color: "#ffffff",
-        weight: 2,
-        opacity: 1,
-        fillOpacity: 0.9
-    };
+        // Стиль для БОЛЬШИХ БАКОВ / КОНТЕЙНЕРОВ (Зеленые круги побольше)
+        const containerStyle = {
+            radius: 12,
+            fillColor: "#2ECC40", // Зеленый цвет
+            color: "#ffffff",
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.9
+        };
 
-        // Включаем геолокацию пользователя
-        map.locate({setView: true, maxZoom: 16});
+        // Включаем геолокацию пользователя (setView: false, чтобы карта не дергалась резко при запуске)
+        map.locate({setView: false, maxZoom: 16});
 
         // Функция, если геолокация успешно найдена
         function onLocationFound(e) {
-            const radius = e.accuracy / 2;
-            L.marker(e.latlng).addTo(map)
-                .bindPopup("Вы находитесь в радиусе " + radius + " метров от этой точки").openPopup();
-            L.circle(e.latlng, radius).addTo(map);
+            // Создаем кастомную звезду вместо стандартной капли
+            const starSvg = `
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="36" height="36">
+                    <path fill="#FF4136" stroke="#ffffff" stroke-width="2" 
+                    d="M12 .587l3.668 7.431 8.2 1.192-5.934 5.787 1.4 8.168L12 18.896l-7.334 3.857 1.4-8.168L.132 9.21l8.2-1.192z"/>
+                </svg>
+            `;
+
+            const userIcon = L.divIcon({
+                html: starSvg,
+                className: 'user-star-marker',
+                iconSize: [36, 36],
+                iconAnchor: [18, 18]
+            });
+
+            // Ставим звезду на карту
+            L.marker(e.latlng, {icon: userIcon}).addTo(map)
+                .bindPopup("<b>Вы здесь! 📍</b>").openPopup();
         }
         map.on('locationfound', onLocationFound);
 
         // Если геолокацию определить не удалось
         function onLocationError(e) {
-            alert("Не удалось определить ваше местоположение: " + e.message);
+            console.log("Геолокация недоступна: " + e.message);
         }
         map.on('locationerror', onLocationError);
 
 
         // --- НАШИ ТОЧКИ (Мусорные баки и урны) ---
         
-        // Точка 1: Мусорный бак лукмони хаким
-        const bin1 = L.marker([40.299929, 69.620699, containerStyle).addTo(map);
+        // Точка 1: Мусорный бак лукмони хаким (Ошибку исправил, заменил на circleMarker)
+        const bin1 = L.circleMarker([40.299929, 69.620699], containerStyle).addTo(map);
         bin1.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
 
         // Точка 2: Уличная урна лукмони хаким
-        const bin2 = L.marker([40.299659, 69.620296], urnStyle).addTo(map);
+        const bin2 = L.circleMarker([40.299659, 69.620296], urnStyle).addTo(map);
         bin2.bindPopup("<b>Уличная урна</b><br>Рядом со скамейкой");
 
-        // Точка 4: Мусорный бак jordan
-        const bin4 = L.marker([40.295390, 69.619887], containerStyle).addTo(map);
+        // Точка 4: Мусорный бак 
+        const bin4 = L.circleMarker([40.295390, 69.619887], containerStyle).addTo(map);
         bin4.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
 
-        // Точка 5: Мусорный бак jordan
-        const bin5 = L.marker([40.299663, 69.617160], containerStyle).addTo(map);
+        // Точка 5: Мусорный бак 
+        const bin5 = L.circleMarker([40.299663, 69.617160], containerStyle).addTo(map);
         bin5.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
 
         // Точка 6: Уличная урна лукмони хаким
-        const bin6 = L.marker([40.297905, 69.615246], urnStyle).addTo(map);
+        const bin6 = L.circleMarker([40.297905, 69.615246], urnStyle).addTo(map);
         bin6.bindPopup("<b>Уличная урна</b><br>Рядом со светофором");
 
-        // Точка 7: Мусорный бак jordan
-        const bin7 = L.marker([40.290171, 69.591860], containerStyle).addTo(map);
+        // Точка 7: Мусорный бак 
+        const bin7 = L.circleMarker([40.290171, 69.591860], containerStyle).addTo(map);
         bin7.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
 
-        // Точка 8: Мусорный бак jordan
-        const bin8 = L.marker([40.294807, 69.594147], containerStyle).addTo(map);
+        // Точка 8: Мусорный бак 
+        const bin8 = L.circleMarker([40.294807, 69.594147], containerStyle).addTo(map);
         bin8.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
 
-        // Точка 9: Мусорный бак jordan
-        const bin9 = L.marker([40.295446, 69.590084], containerStyle).addTo(map);
+        // Точка 9: Мусорный бак 
+        const bin9 = L.circleMarker([40.295446, 69.590084], containerStyle).addTo(map);
         bin9.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
 
-        // Точка 10: Мусорный бак jordan
-        const bin10 = L.marker([40.292341, 69.592556], containerStyle).addTo(map);
+        // Точка 10: Мусорный бак 
+        const bin10 = L.circleMarker([40.292341, 69.592556], containerStyle).addTo(map);
         bin10.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
-
 
     </script>
 </body>
