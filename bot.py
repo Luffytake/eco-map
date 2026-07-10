@@ -1,12 +1,15 @@
 import asyncio
+import aiohttp
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
-from aiogram.types import WebAppInfo, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import WebAppInfo, ReplyKeyboardMarkup, KeyboardButton 
 
-# Вставь сюда свой токен от BotFather в кавычках
-BOT_TOKEN = "8701787724:AAGv8UdRywycyahHO0CVd2Q5O6di0s6hdWQ"
+from aiogram.client.session.aiohttp import AiohttpSession
 
-bot = Bot(token=BOT_TOKEN)
+bot = Bot(
+    token="8701787724:AAGv8UdRywycyahH00CVd2Q506di0s6hdWQ",
+    session=AiohttpSession(proxy="http://proxy.server:3128")
+)
 dp = Dispatcher()
 
 @dp.message(CommandStart())
