@@ -6,7 +6,7 @@ from aiogram.filters import CommandStart
 from aiogram.types import WebAppInfo, ReplyKeyboardMarkup, KeyboardButton
 
 # Наш токен
-bot = Bot(token="8701787724:AAGv8UdRywycyahHO0CVd2Q5O6di0s6hdWQ")
+bot = Bot(token="8701787724:AAENNLOJZtNvDjplo4thd5RX6f74uxv8bsg")
 dp = Dispatcher()
 
 @dp.message(CommandStart())
