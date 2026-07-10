@@ -21,7 +21,7 @@ async def cmd_start(message: types.Message):
     )
     
     await message.answer(
-        "Привет! Я бот эко-карты Худжанда. Нажми на кнопку ниже, чтобы увидеть карту мусорных баков и урн.",
+        "Привет! Я eco-khujand-bot. Нажми на кнопку ниже, чтобы увидеть карту мусорных баков(🟢) и урн(🔵).",
         reply_markup=keyboard
     )
 
