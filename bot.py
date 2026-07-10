@@ -7,7 +7,7 @@ from aiogram.types import WebAppInfo, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.client.session.aiohttp import AiohttpSession
 
 bot = Bot(
-    token="8701787724:AAGv8UdRywycyahH00CVd2Q506di0s6hdWQ",
+    token="8701787724:AAGv8UdRywycyahHO0CVd2Q5O6di0s6hdWQ",
     session=AiohttpSession(proxy="http://proxy.server:3128")
 )
 dp = Dispatcher()
