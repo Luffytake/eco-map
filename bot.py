@@ -3,7 +3,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
 from aiogram.types import WebAppInfo, ReplyKeyboardMarkup, KeyboardButton
 
-# Наш чистый и проверенный токен
+# Наш проверенный токен команды "Тихо, не спеша, без суеты"
 bot = Bot(token="8701787724:AAGv8UdRywycyahHO0CVd2Q5O6di0s6hdWQ")
 dp = Dispatcher()
 
