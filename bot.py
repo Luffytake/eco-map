@@ -1,23 +1,17 @@
 import asyncio
-import aiohttp
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
-from aiogram.types import WebAppInfo, ReplyKeyboardMarkup, KeyboardButton 
+from aiogram.types import WebAppInfo, ReplyKeyboardMarkup, KeyboardButton
 
-from aiogram.client.session.aiohttp import AiohttpSession
-
-bot = Bot(
-    token="8701787724:AAGv8UdRywycyahHO0CVd2Q5O6di0s6hdWQ",
-    session=AiohttpSession(proxy="http://proxy.server:3128")
-)
+# Наш чистый и проверенный токен
+bot = Bot(token="8701787724:AAGv8UdRywycyahHO0CVd2Q5O6di0s6hdWQ")
 dp = Dispatcher()
 
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
-    # Твоя рабочая ссылка на карту Худжанда
-    web_app_url = "https://luffytake.github.io/eco-map/" 
+    web_app_url = "https://luffytake.github.io/eco-map/"
     
-    kb = ReplyKeyboardMarkup(
+    keyboard = ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="Открыть карту 🗺️", web_app=WebAppInfo(url=web_app_url))]
         ],
@@ -25,12 +19,8 @@ async def cmd_start(message: types.Message):
     )
     
     await message.answer(
-        f"Привет, {message.from_user.first_name}! 👋\n"
-        f"Я бот проекта Eco-Khujand.\n"
-        f"Нажми на кнопку ниже, чтобы увидеть карту урн и баков нашего города!"
-        f"🟢 - Мусорные баки    "
-        f"🔵 - Мусорная урна",
-        reply_markup=kb
+        "Привет! Я бот эко-карты Худжанда. Нажми на кнопку ниже, чтобы увидеть карту мусорных баков и урн.",
+        reply_markup=keyboard
     )
 
 async def main():
