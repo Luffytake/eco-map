@@ -1,12 +1,16 @@
-import asyncio
 import os
-from aiohttp import web
+import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
 from aiogram.types import WebAppInfo, ReplyKeyboardMarkup, KeyboardButton
 
-# Наш токен
-bot = Bot(token="8701787724:AAENNLOJZtNvDjplo4thd5RX6f74uxv8bsg")
+# Считываем токен из настроек сервера
+BOT_TOKEN = os.getenv("8701787724:AAENNLOJZtNvDjplo4thd5RX6f74uxv8bsg")
+
+if not BOT_TOKEN:
+    raise ValueError("Переменная BOT_TOKEN не задана!")
+
+bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 @dp.message(CommandStart())
@@ -25,29 +29,9 @@ async def cmd_start(message: types.Message):
         reply_markup=keyboard
     )
 
-# Простейший веб-сервер, чтобы Render был доволен
-async def handle(request):
-    return web.Response(text="Бот работает!")
-
 async def main():
     print("Бот успешно запущен и готов к тестам...")
-    
-    # Запускаем опрос Telegram в фоновом режиме
-    asyncio.create_task(dp.start_polling(bot))
-    
-    # Настраиваем веб-сервер на порт, который дает Render
-    app = web.Application()
-    app.router.add_get('/', handle)
-    
-    port = int(os.environ.get("PORT", 10000))
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
-    
-    # Держим сервер запущенным бесконечно
-    while True:
-        await asyncio.sleep(3600)
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
