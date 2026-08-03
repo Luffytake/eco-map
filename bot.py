@@ -5,7 +5,7 @@ from aiogram.filters import CommandStart
 from aiogram.types import WebAppInfo, ReplyKeyboardMarkup, KeyboardButton
 
 # Считываем токен из настроек сервера
-BOT_TOKEN = os.getenv("8701787724:AAENNLOJZtNvDjplo4thd5RX6f74uxv8bsg")
+BOT_TOKEN = os.getenv("8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0")
 
 if not BOT_TOKEN:
     raise ValueError("Переменная BOT_TOKEN не задана!")
