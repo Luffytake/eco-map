@@ -1,20 +1,26 @@
-import asyncio
 import os
+import asyncio
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
 from aiogram.types import WebAppInfo, ReplyKeyboardMarkup, KeyboardButton
 
-BOT_TOKEN = os.getenv("8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0")
+# ==========================================================
+# НЕБЕЗОПАСНЫЙ КОД ТОЛЬКО ДЛЯ ОДНОДНЕВНОЙ ПРЕЗЕНТАЦИИ!
+# Сразу после презентации этот токен будет украден.
+# ==========================================================
 
-if not BOT_TOKEN:
-    raise ValueError("Переменная BOT_TOKEN не задана в настройках Render!")
+# 1. ВСТАВЬ СЮДА СВОЙ ТОКЕН В КАВЫЧКИ:
+MY_TEMP_TOKEN = "ТВОЙ_НОВЫЙ_ТОКЕН_ОТ_BOTFATHER_СЮДА"
 
-bot = Bot(token=BOT_TOKEN)
+# Инициализация бота напрямую через токен в коде
+bot = Bot(token=MY_TEMP_TOKEN)
 dp = Dispatcher()
 
+# Обработка команды /start
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
+    # Ссылка на твое WebApp (твою карту)
     web_app_url = "https://luffytake.github.io/eco-map/"
     
     keyboard = ReplyKeyboardMarkup(
@@ -24,24 +30,16 @@ async def cmd_start(message: types.Message):
         resize_keyboard=True
     )
     
-    await message.answer(
-        "Привет! Я бот эко-карты Худжанда. Нажми на кнопку ниже, чтобы увидеть карту мусорных баков и урн.",
+    await message.answer("Привет! Я бот эко-карты Худжанда. Нажми на кнопку ниже, чтобы увидеть карту мусорных баков и урн.",
         reply_markup=keyboard
     )
 
+# Минимальный веб-сервер для Render, чтобы он не усыплял бота
 async def handle(request):
-    return web.Response(text="Бот работает!")
+    return web.Response(text="Бот запущен для презентации! (защита отключена)")
 
 async def main():
-    # 1. Удаляем возможный старый webhook и сбрасываем зависшие сообщения
-    await bot.delete_webhook(drop_pending_updates=True)
-    print("Старый webhook сброшен...")
-
-    # 2. Запускаем polling в фоновом режиме
-    asyncio.create_task(dp.start_polling(bot))
-    print("Бот успешно запущен и готов к тестам...")
-
-    # 3. Настраиваем и запускаем веб-сервер для Render
+    # Настраиваем веб-сервер на порт 10000 (стандарт для Render)
     app = web.Application()
     app.router.add_get('/', handle)
     
@@ -49,9 +47,17 @@ async def main():
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', port)
+    
+    # 2. Удаляем старые вебхуки, чтобы бот точно проснулся
+    await bot.delete_webhook(drop_pending_updates=True)
+    
+    # Запускаем опрос сообщений в фоновом режиме
+    asyncio.create_task(dp.start_polling(bot))
+    
+    # Запускаем веб-сервер и держим его активным
     await site.start()
-
-    # Держим процесс активным
+    
+    # Вечный цикл, чтобы процесс не завершался
     while True:
         await asyncio.sleep(3600)
 
