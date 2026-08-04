@@ -11,7 +11,7 @@ from aiogram.types import WebAppInfo, ReplyKeyboardMarkup, KeyboardButton
 # ==========================================================
 
 # 1. ВСТАВЬ СЮДА СВОЙ ТОКЕН В КАВЫЧКИ:
-MY_TEMP_TOKEN = "ТВОЙ_НОВЫЙ_ТОКЕН_ОТ_BOTFATHER_СЮДА"
+MY_TEMP_TOKEN = "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"
 
 # Инициализация бота напрямую через токен в коде
 bot = Bot(token=MY_TEMP_TOKEN)
@@ -30,7 +30,7 @@ async def cmd_start(message: types.Message):
         resize_keyboard=True
     )
     
-    await message.answer("Привет! Я бот эко-карты Худжанда. Нажми на кнопку ниже, чтобы увидеть карту мусорных баков и урн.",
+    await message.answer("Привет! Я eco-khujand-bot. Нажми на кнопку ниже, чтобы увидеть карту мусорных баков(🟢) и урн(🔵).",
         reply_markup=keyboard
     )
 
