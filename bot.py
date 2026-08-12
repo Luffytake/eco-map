@@ -3,27 +3,25 @@ import asyncio
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
-from aiogram.types import WebAppInfo, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.types import WebAppInfo, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 # ==========================================================
-# КОД ДЛЯ ПРЕЗЕНТАЦИИ С КНОПКОЙ ОБРАТНОЙ СВЯЗИ
+# ИСПРАВЛЕННЫЙ КОД ДЛЯ ПРЕЗЕНТАЦИИ (ПРИЕМ СООБЩЕНИЙ СО ВСЕХ АКК)
 # ==========================================================
 
 MY_TEMP_TOKEN = "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"
 
-# ⚠️ ВСТАВЬ СЮДА СВОЙ TELEGRAM ID (получи у @userinfobot)
+# Твой Telegram ID
 ADMIN_ID = 1631981047
 
 bot = Bot(token=MY_TEMP_TOKEN)
 dp = Dispatcher()
 
-# Состояния для отправки жалобы
 class ReportState(StatesGroup):
     waiting_for_report = State()
 
-# Главная клавиатура
 def get_main_keyboard():
     web_app_url = "https://luffytake.github.io/eco-map/"
     keyboard = ReplyKeyboardMarkup(
@@ -35,20 +33,17 @@ def get_main_keyboard():
     )
     return keyboard
 
-# Старт
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer(
-        "Привет! Я **eco-khujand-bot**.\n\n"
+        "Привет! Я eco-khujand-bot.\n\n"
         "🟢 — Мусорные баки\n"
         "🔵 — Урны\n\n"
         "Используй кнопки ниже, чтобы открыть карту или сообщить о переполненном баке!",
-        reply_markup=get_main_keyboard(),
-        parse_mode="Markdown"
+        reply_markup=get_main_keyboard()
     )
 
-# Нажатие на "Сообщить о проблеме ⚠️"
 @dp.message(F.text == "Сообщить о проблеме ⚠️")
 async def process_report_start(message: types.Message, state: FSMContext):
     await state.set_state(ReportState.waiting_for_report)
@@ -60,44 +55,44 @@ async def process_report_start(message: types.Message, state: FSMContext):
     
     await message.answer(
         "Отправь фото переполненного бака, описание проблемы или геопозицию.\n\n"
-        "Чтобы вернуться назад, нажми **❌ Отмена**.",
-        reply_markup=cancel_keyboard,
-        parse_mode="Markdown"
+        "Чтобы вернуться назад, нажми ❌ Отмена.",
+        reply_markup=cancel_keyboard
     )
 
-# Отмена отправки
 @dp.message(F.text == "❌ Отмена")
 async def cancel_report(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer("Отправка отменена.", reply_markup=get_main_keyboard())
 
-# Прием отчета (фото, текст или геопозиция)
+# ИСПРАВЛЕННЫЙ ПРИЕМ СООБЩЕНИЙ С ЛЮБЫХ АККАУНТОВ
 @dp.message(ReportState.waiting_for_report)
 async def process_report_send(message: types.Message, state: FSMContext):
-    user_info = f"🚨 **НОВОЕ СООБЩЕНИЕ О ПРОБЛЕМЕ!**\n👤 От: @{message.from_user.username or message.from_user.first_name} (ID: `{message.from_user.id}`)"
+    username = message.from_user.username
+    user_str = f"@{username}" if username else message.from_user.first_name
     
     try:
-        # 1. Отправляем инфо об отправителе
-        await bot.send_message(ADMIN_ID, user_info, parse_mode="Markdown")
+        # 1. Отправляем карточку с информацией об отправителе
+        await bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f"🚨 НОВОЕ СООБЩЕНИЕ О ПРОБЛЕМЕ!\n👤 От: {user_str} (ID: {message.from_user.id})"
+        )
         
-        # 2. Копируем само сообщение (фото, текст, геолокацию) администратору
+        # 2. Скопировать ЛЮБОЙ тип медиа/текста администратору
         await message.copy_to(chat_id=ADMIN_ID)
         
         await message.answer("Спасибо! Твоё сообщение отправлено администрации города.", reply_markup=get_main_keyboard())
     except Exception as e:
-        print(f"Ошибка отправки администратору: {e}")
-        await message.answer("Произошла ошибка при отправке. Убедись, что администратор запустил бота и ID указан верно.", reply_markup=get_main_keyboard())
+        print(f"Ошибка пересылки: {e}")
+        await message.answer("Произошла ошибка при отправке.", reply_markup=get_main_keyboard())
     
     await state.clear()
 
-# Ответ на любые другие сообщения
 @dp.message()
 async def default_handler(message: types.Message):
     await message.answer("Пожалуйста, используй кнопки ниже для навигации 👇", reply_markup=get_main_keyboard())
 
-# Веб-сервер Render
 async def handle(request):
-    return web.Response(text="Бот и функционал жалоб работают!")
+    return web.Response(text="Бот работает!")
 
 async def main():
     app = web.Application()
