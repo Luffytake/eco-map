@@ -80,7 +80,7 @@ async def process_report_send(message: types.Message, state: FSMContext):
         # 2. Скопировать ЛЮБОЙ тип медиа/текста администратору
         await message.copy_to(chat_id=ADMIN_ID)
         
-        await message.answer("Спасибо! Твоё сообщение отправлено администрации города.", reply_markup=get_main_keyboard())
+        await message.answer("Спасибо! Ваше сообщение отправлено эко-активистам города.", reply_markup=get_main_keyboard())
     except Exception as e:
         print(f"Ошибка пересылки: {e}")
         await message.answer("Произошла ошибка при отправке.", reply_markup=get_main_keyboard())
