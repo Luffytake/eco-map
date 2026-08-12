@@ -74,15 +74,19 @@ async def cancel_report(message: types.Message, state: FSMContext):
 # Прием отчета (фото, текст или геопозиция)
 @dp.message(ReportState.waiting_for_report)
 async def process_report_send(message: types.Message, state: FSMContext):
-    user_info = f"👤 От: @{message.from_user.username or message.from_user.first_name} (ID: `{message.from_user.id}`)"
+    user_info = f"🚨 **НОВОЕ СООБЩЕНИЕ О ПРОБЛЕМЕ!**\n👤 От: @{message.from_user.username or message.from_user.first_name} (ID: `{message.from_user.id}`)"
     
-    # Пересылаем сообщение администратору
     try:
-        await bot.send_message(ADMIN_ID, f"🚨 **НОВОЕ СООБЩЕНИЕ О ПРОБЛЕМЕ!**\n{user_info}", parse_mode="Markdown")
-        await message.forward(chat_id=ADMIN_ID)
+        # 1. Отправляем инфо об отправителе
+        await bot.send_message(ADMIN_ID, user_info, parse_mode="Markdown")
+        
+        # 2. Копируем само сообщение (фото, текст, геолокацию) администратору
+        await message.copy_to(chat_id=ADMIN_ID)
+        
         await message.answer("Спасибо! Твоё сообщение отправлено администрации города.", reply_markup=get_main_keyboard())
     except Exception as e:
-        await message.answer("Произошла ошибка при отправке. Убедись, что администратор запустил бота.", reply_markup=get_main_keyboard())
+        print(f"Ошибка отправки администратору: {e}")
+        await message.answer("Произошла ошибка при отправке. Убедись, что администратор запустил бота и ID указан верно.", reply_markup=get_main_keyboard())
     
     await state.clear()
 
