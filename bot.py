@@ -22,6 +22,42 @@ dp = Dispatcher()
 class ReportState(StatesGroup):
     waiting_for_report = State()
 
+
+# 1. Новое главное меню с кнопкой Профиля
+def get_main_keyboard():
+    web_app_url = "https://luffytake.github.io/eco-map/"
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="Открыть карту 🗺️", web_app=WebAppInfo(url=web_app_url))],
+            [KeyboardButton(text="Сообщить о проблеме ⚠️")],
+            [KeyboardButton(text="Профиль 👤")]
+        ],
+        resize_keyboard=True
+    )
+    return keyboard
+
+# 2. Обработчик кнопки "Профиль 👤"
+@dp.message(F.text == "Профиль 👤")
+async def process_profile(message: types.Message):
+    user_name = message.from_user.first_name
+    user_id = message.from_user.id
+    
+    # В будущем эти данные будут запрашиваться из базы данных (SQLite / PostgreSQL)
+    eco_points = 0
+    reports_count = 0
+    rank = "Эко-новичок 🌱"
+    
+    profile_text = (
+        f"👤 **Личный кабинет**\n\n"
+        f"Имя: **{user_name}** (ID: `{user_id}`)\n"
+        f"Статус: **{rank}**\n"
+        f"🏆 Эко-баллы: **{eco_points}**\n"
+        f"📬 Отправлено отчетов: **{reports_count}**\n\n"
+        f"💡 *Зарабатывай баллы, отправляя фото переполненных баков и участвуя в субботниках Худжанда!*"
+    )
+    
+    await message.answer(profile_text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+
 def get_main_keyboard():
     web_app_url = "https://luffytake.github.io/eco-map/"
     keyboard = ReplyKeyboardMarkup(
