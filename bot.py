@@ -7,13 +7,7 @@ from aiogram.types import WebAppInfo, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
-# ==========================================================
-# ИСПРАВЛЕННЫЙ КОД ДЛЯ ПРЕЗЕНТАЦИИ (ПРИЕМ СООБЩЕНИЙ СО ВСЕХ АКК)
-# ==========================================================
-
 MY_TEMP_TOKEN = "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"
-
-# Твой Telegram ID
 ADMIN_ID = 1631981047
 
 bot = Bot(token=MY_TEMP_TOKEN)
@@ -22,8 +16,7 @@ dp = Dispatcher()
 class ReportState(StatesGroup):
     waiting_for_report = State()
 
-
-# 1. Новое главное меню с кнопкой Профиля
+# ЕДИНСТВЕННАЯ ИСПРАВЛЕННАЯ КЛАВИАТУРА
 def get_main_keyboard():
     web_app_url = "https://luffytake.github.io/eco-map/"
     keyboard = ReplyKeyboardMarkup(
@@ -36,13 +29,23 @@ def get_main_keyboard():
     )
     return keyboard
 
-# 2. Обработчик кнопки "Профиль 👤"
+@dp.message(CommandStart())
+async def cmd_start(message: types.Message, state: FSMContext):
+    await state.clear()
+    await message.answer(
+        "Привет! Я eco-khujand-bot.\n\n"
+        "🟢 — Мусорные баки\n"
+        "🔵 — Урны\n\n"
+        "Используй кнопки ниже, чтобы открыть карту, профиль или сообщить о переполненном баке!",
+        reply_markup=get_main_keyboard()
+    )
+
+# Обработчик профиля
 @dp.message(F.text == "Профиль 👤")
 async def process_profile(message: types.Message):
     user_name = message.from_user.first_name
     user_id = message.from_user.id
     
-    # В будущем эти данные будут запрашиваться из базы данных (SQLite / PostgreSQL)
     eco_points = 0
     reports_count = 0
     rank = "Эко-новичок 🌱"
@@ -57,28 +60,6 @@ async def process_profile(message: types.Message):
     )
     
     await message.answer(profile_text, parse_mode="Markdown", reply_markup=get_main_keyboard())
-
-def get_main_keyboard():
-    web_app_url = "https://luffytake.github.io/eco-map/"
-    keyboard = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="Открыть карту 🗺️", web_app=WebAppInfo(url=web_app_url))],
-            [KeyboardButton(text="Сообщить о проблеме ⚠️")]
-        ],
-        resize_keyboard=True
-    )
-    return keyboard
-
-@dp.message(CommandStart())
-async def cmd_start(message: types.Message, state: FSMContext):
-    await state.clear()
-    await message.answer(
-        "Привет! Я eco-khujand-bot.\n\n"
-        "🟢 — Мусорные баки\n"
-        "🔵 — Урны\n\n"
-        "Используй кнопки ниже, чтобы открыть карту или сообщить о переполненном баке!",
-        reply_markup=get_main_keyboard()
-    )
 
 @dp.message(F.text == "Сообщить о проблеме ⚠️")
 async def process_report_start(message: types.Message, state: FSMContext):
@@ -100,23 +81,18 @@ async def cancel_report(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer("Отправка отменена.", reply_markup=get_main_keyboard())
 
-# ИСПРАВЛЕННЫЙ ПРИЕМ СООБЩЕНИЙ С ЛЮБЫХ АККАУНТОВ
 @dp.message(ReportState.waiting_for_report)
 async def process_report_send(message: types.Message, state: FSMContext):
     username = message.from_user.username
     user_str = f"@{username}" if username else message.from_user.first_name
     
     try:
-        # 1. Отправляем карточку с информацией об отправителе
         await bot.send_message(
             chat_id=ADMIN_ID,
             text=f"🚨 НОВОЕ СООБЩЕНИЕ О ПРОБЛЕМЕ!\n👤 От: {user_str} (ID: {message.from_user.id})"
         )
-        
-        # 2. Скопировать ЛЮБОЙ тип медиа/текста администратору
         await message.copy_to(chat_id=ADMIN_ID)
-        
-        await message.answer("Спасибо! Ваше сообщение отправлено эко-активистам города.", reply_markup=get_main_keyboard())
+        await message.answer("Спасибо! Твоё сообщение отправлено администрации города.", reply_markup=get_main_keyboard())
     except Exception as e:
         print(f"Ошибка пересылки: {e}")
         await message.answer("Произошла ошибка при отправке.", reply_markup=get_main_keyboard())
