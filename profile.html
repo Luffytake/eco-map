@@ -111,7 +111,7 @@
 
   <div class="card">
     <div class="avatar-container">
-      <img id="user-avatar" class="avatar" src="https://ui-avatars.com/api/?name=User&background=2ecc71&color=fff" alt="Avatar">
+      <img id="user-avatar" class="avatar" src="https://ui-avatars.com/api/?name=Eco&background=2ecc71&color=fff" alt="Avatar">
       <div class="badge-icon">🌱</div>
     </div>
 
@@ -137,20 +137,28 @@
     tg.ready();
     tg.expand();
 
+    // Забираем данные аккаунта из сессии Telegram
     const user = tg.initDataUnsafe?.user;
 
     if (user) {
-      document.getElementById('user-name').innerText = user.first_name + (user.last_name ? ' ' + user.last_name : '');
-      document.getElementById('user-handle').innerText = (user.username ? '@' + user.username : 'ID') + ' • ID: ' + user.id;
+      // Имя и Фамилия
+      const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ');
+      document.getElementById('user-name').innerText = fullName || "Пользователь";
 
+      // Юзернейм и ID
+      const handleText = user.username ? `@${user.username}` : `ID: ${user.id}`;
+      document.getElementById('user-handle').innerText = `${handleText} • ID: ${user.id}`;
+
+      // Аватарка (если есть фото профиля в TG, берем его; если нет — генерируем стильную с инициалами)
       if (user.photo_url) {
         document.getElementById('user-avatar').src = user.photo_url;
       } else {
-        document.getElementById('user-avatar').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.first_name)}&background=2ecc71&color=fff`;
+        const nameForAvatar = encodeURIComponent(user.first_name || "User");
+        document.getElementById('user-avatar').src = `https://ui-avatars.com/api/?name=${nameForAvatar}&background=2ecc71&color=fff&size=128`;
       }
     } else {
       document.getElementById('user-name').innerText = "Гость";
-      document.getElementById('user-handle').innerText = "@guest • ID: -----";
+      document.getElementById('user-handle').innerText = "Откройте профиль в Telegram";
     }
   </script>
 </body>
