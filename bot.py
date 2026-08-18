@@ -18,12 +18,14 @@ class ReportState(StatesGroup):
 
 # ЕДИНСТВЕННАЯ ИСПРАВЛЕННАЯ КЛАВИАТУРА
 def get_main_keyboard():
-    web_app_url = "https://luffytake.github.io/eco-map/"
+    web_app_map_url = "https://luffytake.github.io/eco-map/"
+    web_app_profile_url = "https://luffytake.github.io/eco-map/profile.html"
+    
     keyboard = ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="Открыть карту 🗺️", web_app=WebAppInfo(url=web_app_url))],
+            [KeyboardButton(text="Открыть карту 🗺️", web_app=WebAppInfo(url=web_app_map_url))],
             [KeyboardButton(text="Сообщить о проблеме ⚠️")],
-            [KeyboardButton(text="Профиль 👤")]
+            [KeyboardButton(text="Профиль 👤", web_app=WebAppInfo(url=web_app_profile_url))]
         ],
         resize_keyboard=True
     )
