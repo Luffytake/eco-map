@@ -101,28 +101,42 @@
   </div>
 
   <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      const tg = window.Telegram?.WebApp;
-      if (tg) {
-        tg.ready();
-        
-        // Автоматически подтягиваем аватарку и имя из Telegram
-        const user = tg.initDataUnsafe?.user;
-        if (user) {
-          if (user.username) {
-            document.getElementById('username').innerText = user.username.toUpperCase();
-          } else if (user.first_name) {
-            document.getElementById('username').innerText = user.first_name.toUpperCase();
-          }
+document.addEventListener("DOMContentLoaded", function () {
+  const tg = window.Telegram?.WebApp;
 
-          if (user.photo_url) {
-            const avatarImg = document.getElementById('user-avatar');
-            avatarImg.src = user.photo_url;
-            avatarImg.style.display = 'block';
-          }
-        }
+  if (tg) {
+    tg.ready();
+    
+    // Получаем данные текущего пользователя из Telegram
+    const user = tg.initDataUnsafe?.user;
+
+    if (user) {
+      // 1. Отображение никнейма или имени
+      const usernameElement = document.getElementById('username');
+      
+      if (user.username) {
+        // Если есть username (@nickname)
+        usernameElement.innerText = user.username.toUpperCase();
+      } else if (user.first_name) {
+        // Если username не задан, берем имя пользователя
+        const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ');
+        usernameElement.innerText = fullName.toUpperCase();
       }
-    });
+
+      // 2. Отображение аватарки пользователя
+      const avatarImg = document.getElementById('user-avatar');
+      
+      if (user.photo_url) {
+        // Если у пользователя есть фото профиля в Telegram
+        avatarImg.src = user.photo_url;
+        avatarImg.style.display = 'block';
+      } else {
+        // Если фото нет, оставляем стилизованную градиентную заглушку
+        avatarImg.style.display = 'none';
+      }
+    }
+  }
+});
 
     function openSettings() {
       // Клик по трем полоскам
