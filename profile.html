@@ -27,7 +27,6 @@
       position: relative;
     }
 
-    /* Пункт управления (три тире) */
     .menu-btn {
       position: absolute;
       top: 10px;
@@ -46,7 +45,6 @@
       border-radius: 2px;
     }
 
-    /* Блок аватарки и имени */
     .profile-header {
       display: flex;
       flex-direction: column;
@@ -54,16 +52,17 @@
       margin-top: 40px;
     }
 
+    /* Контейнер аватарки */
     .avatar-wrapper {
       width: 120px;
       height: 120px;
       border-radius: 50%;
       overflow: hidden;
-      border: 3px dashed #81c784; /* Пунктирный контур как на макете */
+      border: 3px dashed #81c784;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(135deg, #a8e063, #56ab2f);
+      background: #2c2c2e; /* Нейтральный темный фон до загрузки */
     }
 
     .avatar-wrapper img {
@@ -72,78 +71,88 @@
       object-fit: cover;
     }
 
+    /* Текстовая заглушка, если нет фото */
+    .avatar-placeholder {
+      font-size: 40px;
+      font-weight: bold;
+      color: #81c784;
+      text-transform: uppercase;
+    }
+
     .username {
       margin-top: 16px;
       font-size: 24px;
       font-weight: 800;
       letter-spacing: 1px;
       text-transform: uppercase;
+      min-height: 29px; /* Предотвращает дергание верстки */
     }
   </style>
 </head>
 <body>
 
   <div class="container">
-    <!-- Пункт управления -->
     <div class="menu-btn" onclick="openSettings()">
       <span></span>
       <span></span>
       <span></span>
     </div>
 
-    <!-- Аватар и Имя -->
     <div class="profile-header">
-      <div class="avatar-wrapper">
-        <img id="user-avatar" src="" alt="Avatar" style="display: none;">
+      <div class="avatar-wrapper" id="avatar-container">
+        <!-- Аватар или первая буква имени подгрузится динамически -->
       </div>
-      <div id="username" class="username">MANU</div>
+      <div id="username" class="username"></div>
     </div>
   </div>
 
   <script>
-document.addEventListener("DOMContentLoaded", function () {
-  const tg = window.Telegram?.WebApp;
-
-  if (tg) {
-    tg.ready();
-    
-    // Получаем данные текущего пользователя из Telegram
-    const user = tg.initDataUnsafe?.user;
-
-    if (user) {
-      // 1. Отображение никнейма или имени
-      const usernameElement = document.getElementById('username');
+    function initProfile() {
+      const tg = window.Telegram?.WebApp;
       
-      if (user.username) {
-        // Если есть username (@nickname)
-        usernameElement.innerText = user.username.toUpperCase();
-      } else if (user.first_name) {
-        // Если username не задан, берем имя пользователя
-        const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ');
-        usernameElement.innerText = fullName.toUpperCase();
-      }
+      if (tg) {
+        tg.ready();
+        tg.expand();
 
-      // 2. Отображение аватарки пользователя
-      const avatarImg = document.getElementById('user-avatar');
-      
-      if (user.photo_url) {
-        // Если у пользователя есть фото профиля в Telegram
-        avatarImg.src = user.photo_url;
-        avatarImg.style.display = 'block';
-      } else {
-        // Если фото нет, оставляем стилизованную градиентную заглушку
-        avatarImg.style.display = 'none';
+        const user = tg.initDataUnsafe?.user;
+
+        const usernameEl = document.getElementById('username');
+        const avatarContainer = document.getElementById('avatar-container');
+
+        if (user) {
+          // 1. Установка никнейма или имени
+          let displayName = "";
+          if (user.username) {
+            displayName = user.username;
+          } else if (user.first_name) {
+            displayName = user.first_name + (user.last_name ? " " + user.last_name : "");
+          } else {
+            displayName = "ПОЛЬЗОВАТЕЛЬ";
+          }
+          usernameEl.innerText = displayName.toUpperCase();
+
+          // 2. Установка аватарки
+          if (user.photo_url) {
+            avatarContainer.innerHTML = `<img src="${user.photo_url}" alt="Avatar">`;
+          } else {
+            // Если аватарки в TG нет — ставим первую букву имени на стильном фоне
+            const firstLetter = displayName.charAt(0).toUpperCase();
+            avatarContainer.innerHTML = `<div class="avatar-placeholder">${firstLetter}</div>`;
+          }
+        } else {
+          // Запасной вариант для тестирования в обычном браузере
+          usernameEl.innerText = "ГОСТЬ";
+          avatarContainer.innerHTML = `<div class="avatar-placeholder">G</div>`;
+        }
       }
     }
-  }
-});
+
+    // Запускаем инициализацию сразу после загрузки DOM
+    document.addEventListener("DOMContentLoaded", initProfile);
 
     function openSettings() {
-      // Клик по трем полоскам
       const tg = window.Telegram?.WebApp;
-      if (tg) {
-        tg.showAlert("Раздел настроек открыт");
-      }
+      if (tg) tg.showAlert("Настройки");
     }
   </script>
 </body>
