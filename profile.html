@@ -27,6 +27,50 @@
       position: relative;
     }
 
+    /* Блок со статистикой */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.stat-card {
+  background-color: #1a1a1a;
+  border-radius: 16px;
+  padding: 16px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.stat-value-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.stat-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.stat-icon {
+  font-size: 20px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #8e8e93;
+  margin-top: 6px;
+  font-weight: 500;
+}
+
     /* Кнопка Меню (Три тире) */
     .menu-btn {
       position: absolute;
@@ -230,6 +274,26 @@
       loadProfileData();
     });
 
+    <!-- Блок Отчетов и Баллов -->
+    <div class="stats-grid">
+      <!-- Карточка Отчетов -->
+      <div class="stat-card">
+        <div class="stat-value-container">
+          <span id="reports-count" class="stat-value">0</span>
+        </div>
+        <div class="stat-label">Отчетов</div>
+      </div>
+
+      <!-- Карточка Эко-баллов -->
+      <div class="stat-card">
+        <div class="stat-value-container">
+          <span id="eco-points" class="stat-value">0</span>
+          <span class="stat-icon">🏆</span>
+        </div>
+        <div class="stat-label">Эко-баллы</div>
+      </div>
+    </div>
+
     // Показать / Скрыть настройки
     function toggleSettings(show) {
       document.getElementById("settings-modal").style.display = show ? "flex" : "none";
@@ -253,6 +317,12 @@
       }
     }
 
+    // Внутри функции loadProfileData()
+const reports = localStorage.getItem("user_reports") || 0;
+const points = localStorage.getItem("user_points") || 0;
+
+document.getElementById("reports-count").innerText = reports;
+document.getElementById("eco-points").innerText = points;
     // Изменение никнейма
     function editUsername() {
       const currentName = document.getElementById("username").innerText;
