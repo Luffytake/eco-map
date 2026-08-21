@@ -27,6 +27,7 @@
       position: relative;
     }
 
+    /* Кнопка Меню (Три тире) */
     .menu-btn {
       position: absolute;
       top: 10px;
@@ -36,6 +37,7 @@
       flex-direction: column;
       gap: 5px;
       padding: 8px;
+      z-index: 10;
     }
 
     .menu-btn span {
@@ -45,6 +47,7 @@
       border-radius: 2px;
     }
 
+    /* Шапка профиля */
     .profile-header {
       display: flex;
       flex-direction: column;
@@ -52,8 +55,8 @@
       margin-top: 40px;
     }
 
-    /* Контейнер аватарки */
     .avatar-wrapper {
+      position: relative;
       width: 120px;
       height: 120px;
       border-radius: 50%;
@@ -62,7 +65,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #2c2c2e; /* Нейтральный темный фон до загрузки */
+      background: #2c2c2e;
     }
 
     .avatar-wrapper img {
@@ -71,12 +74,15 @@
       object-fit: cover;
     }
 
-    /* Текстовая заглушка, если нет фото */
     .avatar-placeholder {
       font-size: 40px;
       font-weight: bold;
       color: #81c784;
       text-transform: uppercase;
+    }
+
+    #file-input {
+      display: none;
     }
 
     .username {
@@ -85,77 +91,217 @@
       font-weight: 800;
       letter-spacing: 1px;
       text-transform: uppercase;
-      min-height: 29px; /* Предотвращает дергание верстки */
+    }
+
+    /* Выпадающее окно Настроек (Modal) */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal-card {
+      background: #1c1c1e;
+      border: 1px solid #2c2c2e;
+      width: 85%;
+      max-width: 320px;
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      color: #8e8e93;
+      font-size: 20px;
+      cursor: pointer;
+    }
+
+    /* Кнопки управления в настройках */
+    .settings-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .setting-btn {
+      width: 100%;
+      background: #2c2c2e;
+      color: #ffffff;
+      border: none;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .setting-btn:active {
+      background: #3a3a3c;
+    }
+
+    .setting-btn.danger {
+      color: #ff453a;
     }
   </style>
 </head>
 <body>
 
   <div class="container">
-    <div class="menu-btn" onclick="openSettings()">
+    <!-- Кнопка Три полоски -->
+    <div class="menu-btn" onclick="toggleSettings(true)">
       <span></span>
       <span></span>
       <span></span>
     </div>
 
+    <!-- Блок Аватарки и Имени -->
     <div class="profile-header">
-      <div class="avatar-wrapper" id="avatar-container">
-        <!-- Аватар или первая буква имени подгрузится динамически -->
+      <div class="avatar-wrapper">
+        <div id="avatar-container"></div>
       </div>
-      <div id="username" class="username"></div>
+      <div id="username" class="username">MANU</div>
+    </div>
+  </div>
+
+  <!-- Скрытый инпут файла -->
+  <input type="file" id="file-input" accept="image/*" onchange="uploadAvatar(event)">
+
+  <!-- Модальное окно Настроек -->
+  <div class="modal-overlay" id="settings-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Настройки ⚙️</div>
+        <button class="close-btn" onclick="toggleSettings(false)">✕</button>
+      </div>
+
+      <div class="settings-list">
+        <button class="setting-btn" onclick="triggerFileInput()">
+          <span>Сменить аватарку</span>
+          <span>📸</span>
+        </button>
+
+        <button class="setting-btn" onclick="editUsername()">
+          <span>Изменить никнейм</span>
+          <span>✏️</span>
+        </button>
+
+        <button class="setting-btn danger" onclick="resetProfile()">
+          <span>Сбросить данные</span>
+          <span>🔄</span>
+        </button>
+      </div>
     </div>
   </div>
 
   <script>
-    function initProfile() {
+    document.addEventListener("DOMContentLoaded", function () {
       const tg = window.Telegram?.WebApp;
-      
       if (tg) {
         tg.ready();
         tg.expand();
+      }
+      loadProfileData();
+    });
 
-        const user = tg.initDataUnsafe?.user;
+    // Показать / Скрыть настройки
+    function toggleSettings(show) {
+      document.getElementById("settings-modal").style.display = show ? "flex" : "none";
+    }
 
-        const usernameEl = document.getElementById('username');
-        const avatarContainer = document.getElementById('avatar-container');
+    // Загрузка сохраненных данных
+    function loadProfileData() {
+      const savedName = localStorage.getItem("custom_username");
+      const savedAvatar = localStorage.getItem("custom_avatar");
 
-        if (user) {
-          // 1. Установка никнейма или имени
-          let displayName = "";
-          if (user.username) {
-            displayName = user.username;
-          } else if (user.first_name) {
-            displayName = user.first_name + (user.last_name ? " " + user.last_name : "");
-          } else {
-            displayName = "ПОЛЬЗОВАТЕЛЬ";
-          }
-          usernameEl.innerText = displayName.toUpperCase();
+      const usernameEl = document.getElementById("username");
+      const avatarContainer = document.getElementById("avatar-container");
 
-          // 2. Установка аватарки
-          if (user.photo_url) {
-            avatarContainer.innerHTML = `<img src="${user.photo_url}" alt="Avatar">`;
-          } else {
-            // Если аватарки в TG нет — ставим первую букву имени на стильном фоне
-            const firstLetter = displayName.charAt(0).toUpperCase();
-            avatarContainer.innerHTML = `<div class="avatar-placeholder">${firstLetter}</div>`;
-          }
-        } else {
-          // Запасной вариант для тестирования в обычном браузере
-          usernameEl.innerText = "ГОСТЬ";
-          avatarContainer.innerHTML = `<div class="avatar-placeholder">G</div>`;
+      usernameEl.innerText = savedName ? savedName.toUpperCase() : "MANU";
+
+      if (savedAvatar) {
+        avatarContainer.innerHTML = `<img src="${savedAvatar}" alt="Avatar">`;
+      } else {
+        const firstLetter = usernameEl.innerText.charAt(0);
+        avatarContainer.innerHTML = `<div class="avatar-placeholder">${firstLetter}</div>`;
+      }
+    }
+
+    // Изменение никнейма
+    function editUsername() {
+      const currentName = document.getElementById("username").innerText;
+      const newName = prompt("Введи новый никнейм:", currentName);
+
+      if (newName && newName.trim() !== "") {
+        const formattedName = newName.trim().toUpperCase();
+        document.getElementById("username").innerText = formattedName;
+        localStorage.setItem("custom_username", formattedName);
+        
+        // Если аватарки-картинки нет, обновляем букву
+        if (!localStorage.getItem("custom_avatar")) {
+          document.getElementById("avatar-container").innerHTML = 
+            `<div class="avatar-placeholder">${formattedName.charAt(0)}</div>`;
         }
       }
     }
 
-    // Запускаем инициализацию сразу после загрузки DOM
-    document.addEventListener("DOMContentLoaded", initProfile);
+    // Загрузка аватарки
+    function triggerFileInput() {
+      document.getElementById("file-input").click();
+    }
 
-    function openSettings() {
-      const tg = window.Telegram?.WebApp;
-      if (tg) tg.showAlert("Настройки");
+    function uploadAvatar(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const base64Image = e.target.result;
+        document.getElementById("avatar-container").innerHTML = `<img src="${base64Image}" alt="Avatar">`;
+        try {
+          localStorage.setItem("custom_avatar", base64Image);
+        } catch (err) {
+          alert("Файл слишком большой. Выбери другое фото.");
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // Сброс настроек
+    function resetProfile() {
+      if (confirm("Сбросить ник и аватарку?")) {
+        localStorage.removeItem("custom_username");
+        localStorage.removeItem("custom_avatar");
+        loadProfileData();
+        toggleSettings(false);
+      }
     }
   </script>
 </body>
-</html> 
-
-
+</html>
