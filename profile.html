@@ -27,50 +27,6 @@
       position: relative;
     }
 
-    /* Блок со статистикой */
-.stats-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-top: 24px;
-}
-
-.stat-card {
-  background-color: #1a1a1a;
-  border-radius: 16px;
-  padding: 16px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.stat-value-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-
-.stat-value {
-  font-size: 22px;
-  font-weight: 800;
-  color: #ffffff;
-}
-
-.stat-icon {
-  font-size: 20px;
-}
-
-.stat-label {
-  font-size: 12px;
-  color: #8e8e93;
-  margin-top: 6px;
-  font-weight: 500;
-}
-
     /* Кнопка Меню (Три тире) */
     .menu-btn {
       position: absolute;
@@ -137,7 +93,137 @@
       text-transform: uppercase;
     }
 
-    /* Выпадающее окно Настроек (Modal) */
+    /* Блок со статистикой (Отчеты и Эко-баллы) */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .stat-card {
+      background-color: #1a1a1a;
+      border-radius: 16px;
+      padding: 18px 16px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .stat-value-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .stat-value {
+      font-size: 22px;
+      font-weight: 800;
+      color: #ffffff;
+    }
+
+    .stat-icon {
+      font-size: 20px;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: #8e8e93;
+      margin-top: 6px;
+      font-weight: 500;
+    }
+
+    /* Блок ранга и прогресс-бара */
+    .rank-card {
+      background-color: #1a1a1a;
+      border-radius: 20px;
+      padding: 18px 20px;
+      margin-top: 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Круглый неоновый логотип ранга */
+    .rank-logo {
+      width: 72px;
+      height: 72px;
+      min-width: 72px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(129, 199, 132, 0.2) 0%, rgba(18, 18, 18, 0.8) 100%);
+      border: 2px solid #81c784;
+      box-shadow: 0 0 15px rgba(129, 199, 132, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 34px;
+    }
+
+    /* Информация о ранге */
+    .rank-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .rank-title {
+      font-size: 16px;
+      font-weight: 900;
+      color: #81c784;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .rank-subtitle {
+      font-size: 14px;
+      font-weight: 800;
+      color: #ffffff;
+      margin-top: 2px;
+      margin-bottom: 10px;
+      letter-spacing: 1px;
+    }
+
+    /* Контейнер прогресс-бара */
+    .progress-container {
+      position: relative;
+      width: 100%;
+      height: 22px;
+      background-color: #2e4a33;
+      border-radius: 11px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Заполнение прогресс-бара */
+    .progress-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      width: 10%; /* 2 из 20 = 10% */
+      background: linear-gradient(90deg, #66bb6a, #81c784);
+      border-radius: 11px;
+      transition: width 0.4s ease;
+    }
+
+    /* Текст внутри шкалы */
+    .progress-text {
+      position: relative;
+      z-index: 2;
+      font-size: 11px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: 0.5px;
+    }
+
+    /* Модальное окно Настроек */
     .modal-overlay {
       display: none;
       position: fixed;
@@ -182,7 +268,6 @@
       cursor: pointer;
     }
 
-    /* Кнопки управления в настройках */
     .settings-list {
       display: flex;
       flex-direction: column;
@@ -218,26 +303,57 @@
 <body>
 
   <div class="container">
-    <!-- Кнопка Три полоски -->
+    <!-- Кнопка три полоски (Меню) -->
     <div class="menu-btn" onclick="toggleSettings(true)">
       <span></span>
       <span></span>
       <span></span>
     </div>
 
-    <!-- Блок Аватарки и Имени -->
+    <!-- Аватар и Имя -->
     <div class="profile-header">
       <div class="avatar-wrapper">
         <div id="avatar-container"></div>
       </div>
-      <div id="username" class="username">Гость</div>
+      <div id="username" class="username">MANU</div>
+    </div>
+
+    <!-- Блок Отчетов и Баллов -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value-container">
+          <span id="reports-count" class="stat-value">0</span>
+        </div>
+        <div class="stat-label">Отчетов</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value-container">
+          <span id="eco-points" class="stat-value">0</span>
+          <span class="stat-icon">🏆</span>
+        </div>
+        <div class="stat-label">Эко-баллы</div>
+      </div>
+    </div>
+
+    <!-- Блок Ранга и Прогресса -->
+    <div class="rank-card">
+      <div class="rank-logo">🌱</div>
+      <div class="rank-info">
+        <div id="rank-title" class="rank-title">ЭКО - НОВИЧОК</div>
+        <div id="rank-subtitle" class="rank-subtitle">РАНГ I</div>
+        <div class="progress-container">
+          <div id="progress-fill" class="progress-fill"></div>
+          <span id="progress-text" class="progress-text">2/20</span>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Скрытый инпут файла -->
+  <!-- Скрытый инпут файла для аватарки -->
   <input type="file" id="file-input" accept="image/*" onchange="uploadAvatar(event)">
 
-  <!-- Модальное окно Настроек -->
+  <!-- Выпадающее окно Настроек -->
   <div class="modal-overlay" id="settings-modal">
     <div class="modal-card">
       <div class="modal-header">
@@ -274,35 +390,15 @@
       loadProfileData();
     });
 
-    <!-- Блок Отчетов и Баллов -->
-    <div class="stats-grid">
-      <!-- Карточка Отчетов -->
-      <div class="stat-card">
-        <div class="stat-value-container">
-          <span id="reports-count" class="stat-value">0</span>
-        </div>
-        <div class="stat-label">Отчетов</div>
-      </div>
-
-      <!-- Карточка Эко-баллов -->
-      <div class="stat-card">
-        <div class="stat-value-container">
-          <span id="eco-points" class="stat-value">0</span>
-          <span class="stat-icon">🏆</span>
-        </div>
-        <div class="stat-label">Эко-баллы</div>
-      </div>
-    </div>
-
-    // Показать / Скрыть настройки
     function toggleSettings(show) {
       document.getElementById("settings-modal").style.display = show ? "flex" : "none";
     }
 
-    // Загрузка сохраненных данных
     function loadProfileData() {
       const savedName = localStorage.getItem("custom_username");
       const savedAvatar = localStorage.getItem("custom_avatar");
+      const savedReports = localStorage.getItem("user_reports") || "2"; // По умолчанию 2, как на макете
+      const savedPoints = localStorage.getItem("user_points") || "0";
 
       const usernameEl = document.getElementById("username");
       const avatarContainer = document.getElementById("avatar-container");
@@ -315,15 +411,19 @@
         const firstLetter = usernameEl.innerText.charAt(0);
         avatarContainer.innerHTML = `<div class="avatar-placeholder">${firstLetter}</div>`;
       }
+
+      document.getElementById("reports-count").innerText = savedReports;
+      document.getElementById("eco-points").innerText = savedPoints;
+
+      // Расчет прогресс-бара
+      const reportsNum = parseInt(savedReports, 10) || 0;
+      const maxReports = 20;
+      const percentage = Math.min(Math.round((reportsNum / maxReports) * 100), 100);
+
+      document.getElementById("progress-fill").style.width = percentage + "%";
+      document.getElementById("progress-text").innerText = `${reportsNum}/${maxReports}`;
     }
 
-    // Внутри функции loadProfileData()
-const reports = localStorage.getItem("user_reports") || 0;
-const points = localStorage.getItem("user_points") || 0;
-
-document.getElementById("reports-count").innerText = reports;
-document.getElementById("eco-points").innerText = points;
-    // Изменение никнейма
     function editUsername() {
       const currentName = document.getElementById("username").innerText;
       const newName = prompt("Введи новый никнейм:", currentName);
@@ -333,7 +433,6 @@ document.getElementById("eco-points").innerText = points;
         document.getElementById("username").innerText = formattedName;
         localStorage.setItem("custom_username", formattedName);
         
-        // Если аватарки-картинки нет, обновляем букву
         if (!localStorage.getItem("custom_avatar")) {
           document.getElementById("avatar-container").innerHTML = 
             `<div class="avatar-placeholder">${formattedName.charAt(0)}</div>`;
@@ -341,7 +440,6 @@ document.getElementById("eco-points").innerText = points;
       }
     }
 
-    // Загрузка аватарки
     function triggerFileInput() {
       document.getElementById("file-input").click();
     }
@@ -363,11 +461,12 @@ document.getElementById("eco-points").innerText = points;
       reader.readAsDataURL(file);
     }
 
-    // Сброс настроек
     function resetProfile() {
       if (confirm("Сбросить ник и аватарку?")) {
         localStorage.removeItem("custom_username");
         localStorage.removeItem("custom_avatar");
+        localStorage.removeItem("user_reports");
+        localStorage.removeItem("user_points");
         loadProfileData();
         toggleSettings(false);
       }
