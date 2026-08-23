@@ -12,7 +12,7 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 WEBAPP_MAP_URL = "https://khujand-eco-bot.onrender.com/index.html?v=1.2"
-WEBAPP_PROFILE_URL = "https://khujand-eco-bot.onrender.com/profile.html?v=1.2"
+WEBAPP_PROFILE_URL = "https://khujand-eco-bot.onrender.com/profile.html?v=1.3"
 
 def get_main_reply_keyboard():
     return ReplyKeyboardMarkup(
