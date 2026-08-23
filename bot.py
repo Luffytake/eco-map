@@ -6,7 +6,7 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 
-BOT_TOKEN = "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"  # Вставьте ваш токен
+BOT_TOKEN = "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0" 
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -34,19 +34,17 @@ async def cmd_start(message: types.Message):
         reply_markup=get_main_reply_keyboard()
     )
 
-# Обработка текстовой кнопки "Сообщить о проблеме"
 @dp.message(F.text == "Сообщить о проблеме ⚠️")
 async def handle_report(message: types.Message):
     await message.answer("Пришлите фото переполненного бака или геолокацию, чтобы мы передали информацию службы очистки!")
 
-# Веб-сервер: раздача статических HTML-файлов из текущей папки
 async def handle_ping(request):
     return web.Response(text="Bot is running!")
 
 async def start_web_server():
     app = web.Application()
     app.router.add_get("/ping", handle_ping)
-    # Раздача HTML/CSS/JS файлов из корня проекта
+    # Раздача HTML/CSS/JS файлов из папки проекта
     app.router.add_static("/", path=".", show_index=True)
     
     runner = web.AppRunner(app)
