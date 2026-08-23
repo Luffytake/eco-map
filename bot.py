@@ -4,11 +4,34 @@ import os
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 
 BOT_TOKEN = "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"  # Вставьте сюда ваш токен от BotFather
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+
+# URL вашего WebApp
+WEBAPP_MAP_URL = "https://khujand-eco-bot.onrender.com/index.html?v=1.1"
+WEBAPP_PROFILE_URL = "https://khujand-eco-bot.onrender.com/profile.html?v=1.1"
+
+# Функция создания нижних меню-кнопок
+def get_main_reply_keyboard():
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="Открыть карту 🗺️", web_app=WebAppInfo(url=WEBAPP_MAP_URL))
+            ],
+            [
+                KeyboardButton(text="Сообщить о проблеме ⚠️")
+            ],
+            [
+                KeyboardButton(text="Профиль 👤", web_app=WebAppInfo(url=WEBAPP_PROFILE_URL))
+            ]
+        ],
+        resize_keyboard=True
+    )
+    return keyboard
 
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
@@ -16,7 +39,8 @@ async def cmd_start(message: types.Message):
         "Привет! Я eco-khujand-bot.\n\n"
         "🟢 — Мусорные баки\n"
         "🔵 — Урны\n\n"
-        "Используй кнопки ниже, чтобы открыть карту, профиль или сообщить о переполненном баке!"
+        "Используй кнопки ниже, чтобы открыть карту, профиль или сообщить о переполненном баке!",
+        reply_markup=get_main_reply_keyboard()
     )
 
 # Легкий веб-сервер для проходимости Health Check на Render
