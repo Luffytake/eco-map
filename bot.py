@@ -4,16 +4,11 @@ import os
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
-from aiogram.types import WebAppInfo
-from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-BOT_TOKEN = "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"  
+BOT_TOKEN = "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"  # Вставьте сюда ваш токен от BotFather
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
-
-WEBAPP_URL = "https://khujand-eco-bot.onrender.com/profile.html?v=1.1"
-
 
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
@@ -21,11 +16,10 @@ async def cmd_start(message: types.Message):
         "Привет! Я eco-khujand-bot.\n\n"
         "🟢 — Мусорные баки\n"
         "🔵 — Урны\n\n"
-        "Используй кнопки ниже, чтобы открыть карту, профиль или сообщить о переполненном баке!",
-        reply_markup=get_main_keyboard()
+        "Используй кнопки ниже, чтобы открыть карту, профиль или сообщить о переполненном баке!"
     )
 
-# Минимальный HTTP-хэндлер для Render Health Check
+# Легкий веб-сервер для проходимости Health Check на Render
 async def handle_ping(request):
     return web.Response(text="Bot is running!")
 
@@ -40,7 +34,7 @@ async def start_web_server():
 
 async def main():
     logging.basicConfig(level=logging.INFO)
-    await start_web_server()  # Запускаем фоновый веб-сервер для порта
+    await start_web_server()
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
