@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Eco Khujand App</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Leaflet Routing Machine CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+  <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -14,6 +23,9 @@
     }
     .page { display: none; padding: 20px; padding-bottom: 90px; }
     .active-page { display: block; }
+    
+    #page-map { padding: 0; padding-bottom: 60px; }
+    #map { width: 100%; height: calc(100vh - 60px); }
 
     .card {
       background: var(--tg-theme-secondary-bg-color, #fff);
@@ -21,9 +33,7 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     }
     
-    .profile-header {
-      display: flex; align-items: center; gap: 15px; margin-bottom: 15px;
-    }
+    .profile-header { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
     .avatar {
       width: 55px; height: 55px; border-radius: 50%;
       background: #2ea6ff; color: #fff; display: flex;
@@ -37,22 +47,16 @@
       background: linear-gradient(135deg, #4CAF50, #2E7D32);
       color: #fff; padding: 18px; border-radius: 12px; text-align: center;
     }
-    .balance-title { font-size: 13px; text-transform: uppercase; opacity: 0.9; }
     .balance-val { font-size: 32px; font-weight: bold; margin: 5px 0; }
 
-    /* Progress bar */
     .progress-container { margin-top: 15px; }
-    .progress-bar {
-      height: 10px; background: #e0e0e0; border-radius: 5px; overflow: hidden;
-    }
+    .progress-bar { height: 10px; background: #e0e0e0; border-radius: 5px; overflow: hidden; }
     .progress-fill { height: 100%; background: #4CAF50; width: 0%; transition: width 0.3s; }
 
-    /* Rules list */
     .rule-item {
       display: flex; justify-content: space-between; align-items: center;
       padding: 10px 0; border-bottom: 1px solid #eee;
     }
-    .rule-item:last-child { border-bottom: none; }
 
     /* Bottom Nav */
     .bottom-nav {
@@ -61,10 +65,7 @@
       display: flex; justify-content: space-around;
       padding: 12px 0; border-top: 1px solid #ddd; z-index: 1000;
     }
-    .nav-btn {
-      border: none; background: none; color: #888;
-      font-weight: bold; font-size: 13px; cursor: pointer;
-    }
+    .nav-btn { border: none; background: none; color: #888; font-weight: bold; font-size: 13px; cursor: pointer; }
     .nav-btn.active { color: #2ea6ff; }
     
     button.action-btn {
@@ -78,26 +79,22 @@
 
   <!-- Вкладка 1: Карта -->
   <div id="page-map" class="page active-page">
-    <h2>🗺️ Эко-карта Худжанда</h2>
-    <div class="card">
-      <p>Здесь отображаются микрорайоны и локации сбора отходов.</p>
-    </div>
+    <div id="map"></div>
   </div>
 
   <!-- Вкладка 2: Отчёт -->
   <div id="page-report" class="page">
     <h2>🌱 Сообщить об активности</h2>
     <div class="card">
-      <p>Выберите тип выполненного действия:</p>
+      <p>Выберите действие:</p>
       <button class="action-btn" onclick="submitReport('Плоггинг', 50)">🧹 Уборка / Плоггинг (+50 баллов)</button>
       <br><br>
       <button class="action-btn" style="background:#4CAF50;" onclick="submitReport('Сдача пластика', 30)">♻️ Сдача пластика (+30 баллов)</button>
     </div>
   </div>
 
-  <!-- Вкладка 3: Профиль и Система -->
+  <!-- Вкладка 3: Профиль -->
   <div id="page-profile" class="page">
-    <!-- Блок пользователя -->
     <div class="card">
       <div class="profile-header">
         <div class="avatar" id="avatar-char">U</div>
@@ -108,9 +105,9 @@
       </div>
 
       <div class="balance-box">
-        <div class="balance-title">Ваш эко-баланс</div>
+        <div>Ваш эко-баланс</div>
         <div class="balance-val" id="user-points">0</div>
-        <div id="user-status">Статус: Новичк 🌿</div>
+        <div id="user-status">Статус: Новичок 🌿</div>
       </div>
 
       <div class="progress-container">
@@ -124,32 +121,15 @@
       </div>
     </div>
 
-    <!-- Инструкция и система начисления -->
     <h3>ℹ️ Как работает система?</h3>
     <div class="card">
-      <div class="rule-item">
-        <span>🧹 Плоггинг / Уборка мусора</span>
-        <b>+50 баллов</b>
-      </div>
-      <div class="rule-item">
-        <span>♻️ Сдача пластика & вторсырья</span>
-        <b>+30 баллов</b>
-      </div>
-      <div class="rule-item">
-        <span>📍 Отметка эко-проблемы на карте</span>
-        <b>+20 баллов</b>
-      </div>
-    </div>
-
-    <div class="card">
-      <h4>💡 Для чего нужны эко-баллы?</h4>
-      <p style="font-size:13px; color:#555; line-height:1.4;">
-        Накопленные баллы повышают ваш общий эко-рейтинг в городе Худжанд. В дальнейшем баллы можно обменивать на бонусы и участие в закрытых эко-акциях.
-      </p>
+      <div class="rule-item"><span>🧹 Уборка / Плоггинг</span><b>+50 баллов</b></div>
+      <div class="rule-item"><span>♻️ Сдача пластика</span><b>+30 баллов</b></div>
+      <div class="rule-item"><span>📍 Отметка эко-проблемы</span><b>+20 баллов</b></div>
     </div>
   </div>
 
-  <!-- Нижнее навигационное меню -->
+  <!-- Навигация -->
   <div class="bottom-nav">
     <button class="nav-btn active" onclick="switchPage('map', this)">🗺️ Карта</button>
     <button class="nav-btn" onclick="switchPage('report', this)">➕ Отчёт</button>
@@ -167,12 +147,87 @@
     document.getElementById("user-id-text").innerText = `ID: ${userId}`;
     document.getElementById("avatar-char").innerText = userName.charAt(0).toUpperCase();
 
+    // --- ИНИЦИАЛИЗА КАРТЫ (Худжанд) ---
+    const khujandCoords = [40.2826, 69.6222];
+    const map = L.map('map').setView(khujandCoords, 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    let routingControl = null;
+    let userMarker = null;
+
+    // Список баков и эко-точек Худжанда (микрорайоны)
+    const ecoSpots = [
+      { name: "Контейнеры (12 мкр)", lat: 40.2750, lng: 69.6350, type: "Раздельный сбор" },
+      { name: "Эко-точка (13 мкр)", lat: 40.2790, lng: 69.6380, type: "Пластик / Стекло" },
+      { name: "Баки (18 мкр)", lat: 40.2860, lng: 69.6150, type: "Общий сбор" },
+      { name: "Контейнеры (19 мкр)", lat: 40.2890, lng: 69.6180, type: "Раздельный сбор" },
+      { name: "Эко-точка (Универмаг)", lat: 40.2810, lng: 69.6230, type: "Пластик" },
+      { name: "Баки (Улица Мира)", lat: 40.2840, lng: 69.6270, type: "Общий сбор" }
+    ];
+
+    // Добавление меток баков
+    ecoSpots.forEach(spot => {
+      const marker = L.marker([spot.lat, spot.lng]).addTo(map);
+      marker.bindPopup(`
+        <b>${spot.name}</b><br>
+        Тип: ${spot.type}<br><br>
+        <button onclick="buildRoute(${spot.lat}, ${spot.lng})" style="background:#2ea6ff;color:#fff;border:none;padding:6px 12px;border-radius:5px;cursor:pointer;">
+          🚶 Построить маршрут
+        </button>
+      `);
+    });
+
+    // Определение геолокации пользователя
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(position => {
+        const uLat = position.coords.latitude;
+        const uLng = position.coords.longitude;
+        userMarker = L.marker([uLat, uLng]).addTo(map).bindPopup("<b>Вы здесь</b>").openPopup();
+      });
+    }
+
+    // Функция построения маршрута
+    function buildRoute(destLat, destLng) {
+      if (!navigator.geolocation) {
+        alert("Геолокация не поддерживается вашим устройством");
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(position => {
+        const startLat = position.coords.latitude;
+        const startLng = position.coords.longitude;
+
+        if (routingControl) {
+          map.removeControl(routingControl);
+        }
+
+        routingControl = L.Routing.control({
+          waypoints: [
+            L.latLng(startLat, startLng),
+            L.latLng(destLat, destLng)
+          ],
+          routeWhileDragging: true,
+          language: 'ru'
+        }).addTo(map);
+
+        map.closePopup();
+      }, () => {
+        alert("Не удалось определить вашу геолокацию для построения маршрута.");
+      });
+    }
+
     function switchPage(pageId, btn) {
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
       document.getElementById('page-' + pageId).classList.add('active-page');
       btn.classList.add('active');
 
+      if (pageId === 'map') {
+        setTimeout(() => map.invalidateSize(), 100);
+      }
       if (pageId === 'profile') loadProfile();
     }
 
@@ -184,19 +239,17 @@
           const pts = data.points || 0;
           document.getElementById("user-points").innerText = pts;
 
-          // Расчет уровня
           let status = "Новичок 🌿";
           let maxPts = 100;
           if (pts >= 100 && pts < 300) { status = "Эко-Активист 🌱"; maxPts = 300; }
           else if (pts >= 300) { status = "Эко-Герой 🌳"; maxPts = 1000; }
 
           document.getElementById("user-status").innerText = `Статус: ${status}`;
-          
           const fillPercent = Math.min(100, Math.round((pts / maxPts) * 100));
           document.getElementById("progress-fill").style.width = fillPercent + "%";
           document.getElementById("progress-text").innerText = `${pts} / ${maxPts}`;
         }
-      } catch (e) { console.error("Ошибка загрузки профиля", e); }
+      } catch (e) { console.error("Ошибка профиля", e); }
     }
 
     async function submitReport(actionType, points) {
@@ -207,12 +260,11 @@
           body: JSON.stringify({ user_id: userId, action_type: actionType, points: points })
         });
         if (res.ok) {
-          tg.showAlert(`Отчёт отправлен! Вам начислено +${points} баллов.`);
+          tg.showAlert(`Отчёт отправлен! Начислено +${points} баллов.`);
         }
-      } catch (e) { tg.showAlert("Ошибка соединения с сервером"); }
+      } catch (e) { tg.showAlert("Ошибка соединения"); }
     }
 
-    // Загрузить профиль при первом открытии
     loadProfile();
   </script>
 </body>
