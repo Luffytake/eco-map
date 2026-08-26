@@ -1,298 +1,219 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Эко-Карта Худжанда</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <style>
-        html, body, #map {
-            width: 100%;
-            height: 100%;
-            margin: 0;
-            padding: 0;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eco Khujand App</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0; padding: 0;
+      background-color: var(--tg-theme-bg-color, #f4f4f9);
+      color: var(--tg-theme-text-color, #333);
+    }
+    .page { display: none; padding: 20px; padding-bottom: 90px; }
+    .active-page { display: block; }
+
+    .card {
+      background: var(--tg-theme-secondary-bg-color, #fff);
+      padding: 16px; border-radius: 14px; margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    
+    .profile-header {
+      display: flex; align-items: center; gap: 15px; margin-bottom: 15px;
+    }
+    .avatar {
+      width: 55px; height: 55px; border-radius: 50%;
+      background: #2ea6ff; color: #fff; display: flex;
+      align-items: center; justify-content: center;
+      font-size: 24px; font-weight: bold;
+    }
+    .user-info h3 { margin: 0; font-size: 18px; }
+    .user-info p { margin: 3px 0 0 0; color: #777; font-size: 13px; }
+
+    .balance-box {
+      background: linear-gradient(135deg, #4CAF50, #2E7D32);
+      color: #fff; padding: 18px; border-radius: 12px; text-align: center;
+    }
+    .balance-title { font-size: 13px; text-transform: uppercase; opacity: 0.9; }
+    .balance-val { font-size: 32px; font-weight: bold; margin: 5px 0; }
+
+    /* Progress bar */
+    .progress-container { margin-top: 15px; }
+    .progress-bar {
+      height: 10px; background: #e0e0e0; border-radius: 5px; overflow: hidden;
+    }
+    .progress-fill { height: 100%; background: #4CAF50; width: 0%; transition: width 0.3s; }
+
+    /* Rules list */
+    .rule-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 0; border-bottom: 1px solid #eee;
+    }
+    .rule-item:last-child { border-bottom: none; }
+
+    /* Bottom Nav */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--tg-theme-secondary-bg-color, #fff);
+      display: flex; justify-content: space-around;
+      padding: 12px 0; border-top: 1px solid #ddd; z-index: 1000;
+    }
+    .nav-btn {
+      border: none; background: none; color: #888;
+      font-weight: bold; font-size: 13px; cursor: pointer;
+    }
+    .nav-btn.active { color: #2ea6ff; }
+    
+    button.action-btn {
+      width: 100%; padding: 12px;
+      background: #2ea6ff; color: #fff; border: none;
+      border-radius: 8px; font-weight: bold; cursor: pointer;
+    }
+  </style>
 </head>
 <body>
 
-    <div id="map"></div>
+  <!-- Вкладка 1: Карта -->
+  <div id="page-map" class="page active-page">
+    <h2>🗺️ Эко-карта Худжанда</h2>
+    <div class="card">
+      <p>Здесь отображаются микрорайоны и локации сбора отходов.</p>
+    </div>
+  </div>
 
-    <script>
-        // Координаты центра Худжанда
-        const khujandCoords = [40.2833, 69.6167];
-        
-        // Инициализация карты
-        const map = L.map('map').setView(khujandCoords, 14);
+  <!-- Вкладка 2: Отчёт -->
+  <div id="page-report" class="page">
+    <h2>🌱 Сообщить об активности</h2>
+    <div class="card">
+      <p>Выберите тип выполненного действия:</p>
+      <button class="action-btn" onclick="submitReport('Плоггинг', 50)">🧹 Уборка / Плоггинг (+50 баллов)</button>
+      <br><br>
+      <button class="action-btn" style="background:#4CAF50;" onclick="submitReport('Сдача пластика', 30)">♻️ Сдача пластика (+30 баллов)</button>
+    </div>
+  </div>
 
-        // Подключаем бесплатные карты OpenStreetMap
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
+  <!-- Вкладка 3: Профиль и Система -->
+  <div id="page-profile" class="page">
+    <!-- Блок пользователя -->
+    <div class="card">
+      <div class="profile-header">
+        <div class="avatar" id="avatar-char">U</div>
+        <div class="user-info">
+          <h3 id="user-name">Загрузка...</h3>
+          <p id="user-id-text">ID: --</p>
+        </div>
+      </div>
 
-        // Стиль для обычных УЛИЧНЫХ УРН (Синие маленькие кружки)
-        const urnStyle = {
-            radius: 8,
-            fillColor: "#0074D9", // Синий цвет
-            color: "#ffffff",
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.8
-        };
+      <div class="balance-box">
+        <div class="balance-title">Ваш эко-баланс</div>
+        <div class="balance-val" id="user-points">0</div>
+        <div id="user-status">Статус: Новичк 🌿</div>
+      </div>
 
-        // Стиль для БОЛЬШИХ БАКОВ / КОНТЕЙНЕРОВ (Зеленые круги побольше)
-        const containerStyle = {
-            radius: 12,
-            fillColor: "#2ECC40", // Зеленый цвет
-            color: "#ffffff",
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.9
-        };
+      <div class="progress-container">
+        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+          <span>Прогресс уровня</span>
+          <span id="progress-text">0 / 100</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+      </div>
+    </div>
 
-        // Включаем геолокацию пользователя (setView: false, чтобы карта не дергалась резко при запуске)
-        map.locate({setView: false, maxZoom: 16});
+    <!-- Инструкция и система начисления -->
+    <h3>ℹ️ Как работает система?</h3>
+    <div class="card">
+      <div class="rule-item">
+        <span>🧹 Плоггинг / Уборка мусора</span>
+        <b>+50 баллов</b>
+      </div>
+      <div class="rule-item">
+        <span>♻️ Сдача пластика & вторсырья</span>
+        <b>+30 баллов</b>
+      </div>
+      <div class="rule-item">
+        <span>📍 Отметка эко-проблемы на карте</span>
+        <b>+20 баллов</b>
+      </div>
+    </div>
 
-        // Функция, если геолокация успешно найдена
-        function onLocationFound(e) {
-            // Создаем кастомную звезду вместо стандартной капли
-            const starSvg = `
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="36" height="36">
-                    <path fill="#FF4136" stroke="#ffffff" stroke-width="2" 
-                    d="M12 .587l3.668 7.431 8.2 1.192-5.934 5.787 1.4 8.168L12 18.896l-7.334 3.857 1.4-8.168L.132 9.21l8.2-1.192z"/>
-                </svg>
-            `;
+    <div class="card">
+      <h4>💡 Для чего нужны эко-баллы?</h4>
+      <p style="font-size:13px; color:#555; line-height:1.4;">
+        Накопленные баллы повышают ваш общий эко-рейтинг в городе Худжанд. В дальнейшем баллы можно обменивать на бонусы и участие в закрытых эко-акциях.
+      </p>
+    </div>
+  </div>
 
-            const userIcon = L.divIcon({
-                html: starSvg,
-                className: 'user-star-marker',
-                iconSize: [36, 36],
-                iconAnchor: [18, 18]
-            });
+  <!-- Нижнее навигационное меню -->
+  <div class="bottom-nav">
+    <button class="nav-btn active" onclick="switchPage('map', this)">🗺️ Карта</button>
+    <button class="nav-btn" onclick="switchPage('report', this)">➕ Отчёт</button>
+    <button class="nav-btn" onclick="switchPage('profile', this)">👤 Профиль</button>
+  </div>
 
-            // Ставим звезду на карту
-            L.marker(e.latlng, {icon: userIcon}).addTo(map)
-                .bindPopup("<b>Вы здесь! 📍</b>").openPopup();
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+
+    const userId = tg.initDataUnsafe?.user?.id || 12345678;
+    const userName = tg.initDataUnsafe?.user?.first_name || "Эко-пользователь";
+
+    document.getElementById("user-name").innerText = userName;
+    document.getElementById("user-id-text").innerText = `ID: ${userId}`;
+    document.getElementById("avatar-char").innerText = userName.charAt(0).toUpperCase();
+
+    function switchPage(pageId, btn) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('page-' + pageId).classList.add('active-page');
+      btn.classList.add('active');
+
+      if (pageId === 'profile') loadProfile();
+    }
+
+    async function loadProfile() {
+      try {
+        const res = await fetch(`/api/user/${userId}`);
+        if (res.ok) {
+          const data = await res.json();
+          const pts = data.points || 0;
+          document.getElementById("user-points").innerText = pts;
+
+          // Расчет уровня
+          let status = "Новичок 🌿";
+          let maxPts = 100;
+          if (pts >= 100 && pts < 300) { status = "Эко-Активист 🌱"; maxPts = 300; }
+          else if (pts >= 300) { status = "Эко-Герой 🌳"; maxPts = 1000; }
+
+          document.getElementById("user-status").innerText = `Статус: ${status}`;
+          
+          const fillPercent = Math.min(100, Math.round((pts / maxPts) * 100));
+          document.getElementById("progress-fill").style.width = fillPercent + "%";
+          document.getElementById("progress-text").innerText = `${pts} / ${maxPts}`;
         }
-        map.on('locationfound', onLocationFound);
+      } catch (e) { console.error("Ошибка загрузки профиля", e); }
+    }
 
-        // Если геолокацию определить не удалось
-        function onLocationError(e) {
-            console.log("Геолокация недоступна: " + e.message);
+    async function submitReport(actionType, points) {
+      try {
+        const res = await fetch('/api/report', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ user_id: userId, action_type: actionType, points: points })
+        });
+        if (res.ok) {
+          tg.showAlert(`Отчёт отправлен! Вам начислено +${points} баллов.`);
         }
-        map.on('locationerror', onLocationError);
+      } catch (e) { tg.showAlert("Ошибка соединения с сервером"); }
+    }
 
-
-        // --- НАШИ ТОЧКИ (Мусорные баки и урны) ---
-        
-        // Точка 1: Мусорный бак лукмони хаким (Ошибку исправил, заменил на circleMarker)
-        const bin1 = L.circleMarker([40.299929, 69.620699], containerStyle).addTo(map);
-        bin1.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
-
-        // Точка 2: Уличная урна лукмони хаким
-        const bin2 = L.circleMarker([40.299659, 69.620296], urnStyle).addTo(map);
-        bin2.bindPopup("<b>Уличная урна</b><br>Рядом со скамейкой");
-
-        // Точка 4: Мусорный бак 
-        const bin4 = L.circleMarker([40.295390, 69.619887], containerStyle).addTo(map);
-        bin4.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
-
-        // Точка 5: Мусорный бак 
-        const bin5 = L.circleMarker([40.299663, 69.617160], containerStyle).addTo(map);
-        bin5.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
-
-        // Точка 6: Уличная урна лукмони хаким
-        const bin6 = L.circleMarker([40.297905, 69.615246], urnStyle).addTo(map);
-        bin6.bindPopup("<b>Уличная урна</b><br>Рядом со светофором");
-
-        // Точка 7: Мусорный бак 
-        const bin7 = L.circleMarker([40.290171, 69.591860], containerStyle).addTo(map);
-        bin7.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
-
-        // Точка 8: Мусорный бак 
-        const bin8 = L.circleMarker([40.294807, 69.594147], containerStyle).addTo(map);
-        bin8.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
-
-        // Точка 9: Мусорный бак 
-        const bin9 = L.circleMarker([40.295446, 69.590084], containerStyle).addTo(map);
-        bin9.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
-
-        // Точка 10: Мусорный бак 
-        const bin10 = L.circleMarker([40.292341, 69.592556], containerStyle).addTo(map);
-        bin10.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
-
-        // Точка 11: Мусорный бак 
-        const bin11 = L.circleMarker([40.294797, 69.594224], containerStyle).addTo(map);
-        bin11.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
-
-        // Точка 12: Мусорный бак 
-        const bin12 = L.circleMarker([40.295714, 69.592587], containerStyle).addTo(map);
-        bin12.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
-
-        // Точка 13: Мусорный бак 
-        const bin13 = L.circleMarker([40.291217, 69.595520], containerStyle).addTo(map);
-        bin13.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
-
-        // Точка 14: Мусорный бак 
-        const bin14 = L.circleMarker([40.298079, 69.598126], containerStyle).addTo(map);
-        bin14.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
-
-        // Точка 15: Мусорный бак 
-        const bin15 = L.circleMarker([40.298875, 69.600408], urnStyle).addTo(map);
-        bin15.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 16: Мусорный бак 
-        const bin16 = L.circleMarker([40.299935, 69.603779], urnStyle).addTo(map);
-        bin16.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 17: Мусорный бак 
-        const bin17 = L.circleMarker([40.293488, 69.591899], containerStyle).addTo(map);
-        bin17.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
-
-        // Точка 18: Мусорный бак 
-        const bin18 = L.circleMarker([40.293580, 69.597363], urnStyle).addTo(map);
-        bin18.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 19: Мусорный бак 
-        const bin19 = L.circleMarker([40.293501, 69.597172], urnStyle).addTo(map);
-        bin19.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 20: Мусорный бак 
-        const bin20 = L.circleMarker([40.291407, 69.596333], urnStyle).addTo(map);
-        bin20.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 21: Мусорный бак 
-        const bin21 = L.circleMarker([40.290115, 69.591836], containerStyle).addTo(map);
-        bin21.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
-
-        // Точка 22: Мусорный бак 
-        const bin22 = L.circleMarker([40.290301, 69.592194], urnStyle).addTo(map);
-        bin22.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 23: Мусорный бак 
-        const bin23 = L.circleMarker([40.296212, 69.610370], urnStyle).addTo(map);
-        bin23.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 24 : Мусорный бак 
-        const bin24 = L.circleMarker([40.297263, 69.613332], urnStyle).addTo(map);
-        bin24.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 25: Мусорный бак 
-        const bin25 = L.circleMarker([40.297303, 69.613455], urnStyle).addTo(map);
-        bin25.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 26: Мусорный бак 
-        const bin26 = L.circleMarker([40.297960, 69.615260], urnStyle).addTo(map);
-        bin26.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 27: Мусорный бак 
-        const bin27 = L.circleMarker([40.297091, 69.615816], urnStyle).addTo(map);
-        bin27.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 28: Мусорный бак 
-        const bin28 = L.circleMarker([40.296065, 69.616349], containerStyle).addTo(map);
-        bin28.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 29: Мусорный бак 
-        const bin29 = L.circleMarker([40.295661, 69.616685], urnStyle).addTo(map);
-        bin29.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 30: Мусорный бак 
-        const bin30 = L.circleMarker([40.295661, 69.616685], urnStyle).addTo(map);
-        bin30.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 31: Мусорный бак 
-        const bin31 = L.circleMarker([40.294912, 69.617156], urnStyle).addTo(map);
-        bin31.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 32: Мусорный бак 
-        const bin32 = L.circleMarker([40.294285, 69.617172], urnStyle).addTo(map);
-        bin32.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 33: Мусорный бак 
-        const bin33 = L.circleMarker([40.294182, 69.617235], urnStyle).addTo(map);
-        bin33.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 34: Мусорный бак 
-        const bin34 = L.circleMarker([40.291248, 69.619102 ], urnStyle).addTo(map);
-        bin34.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 35: Мусорный бак 
-        const bin35 = L.circleMarker([40.287761, 69.618199], urnStyle).addTo(map);
-        bin35.bindPopup("<b>Уличная урна</b><br>");;
-
-        // Точка 36: Мусорный бак 
-        const bin36 = L.circleMarker([40.285293, 69.618650], urnStyle).addTo(map);
-        bin36.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 37: Мусорный бак 
-        const bin37 = L.circleMarker([40.285131, 69.618612], urnStyle).addTo(map);
-        bin37.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 38: Мусорный бак 
-        const bin38 = L.circleMarker([40.285131, 69.618612], urnStyle).addTo(map);
-        bin38.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 39: Мусорный бак 
-        const bin39 = L.circleMarker([40.285541, 69.620910], urnStyle).addTo(map);
-        bin39.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 40: Мусорный бак 
-        const bin40 = L.circleMarker([40.285599, 69.621183], urnStyle).addTo(map);
-        bin40.bindPopup("<b>Уличная урна</b><br>");
-
-
-        // Точка 41: Мусорный бак 
-        const bin41 = L.circleMarker([40.284216, 69.616086], urnStyle).addTo(map);
-        bin41.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 43: Мусорный бак 
-        const bin43 = L.circleMarker([40.300167, 69.632497], containerStyle).addTo(map);
-        bin43.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
-
-        // Точка 44: Мусорный бак 
-        const bin44 = L.circleMarker([40.300200, 69.603449], urnStyle).addTo(map);
-        bin44.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 45: Мусорный бак 
-        const bin45 = L.circleMarker([40.300200, 69.603449], urnStyle).addTo(map);
-        bin45.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 46: Мусорный бак 
-        const bin46 = L.circleMarker([40.285280, 69.623239], containerStyle).addTo(map);
-        bin46.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
-
-        // Точка 47: Мусорный бак 
-        const bin47 = L.circleMarker([40.285196, 69.622087], urnStyle).addTo(map);
-        bin47.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 48: Мусорный бак 
-        const bin48 = L.circleMarker([40.285141, 69.621830], urnStyle).addTo(map);
-        bin48.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 49: Мусорный бак 
-        const bin49 = L.circleMarker([40.276337, 69.609382], containerStyle).addTo(map);
-        bin49.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
-
-        // Точка 50: Мусорный бак 
-        const bin50 = L.circleMarker([40.278314, 69.613180], containerStyle).addTo(map);
-        bin50.bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button onclick='alert(\"Маршрут построится позже\")'>Как дойти?</button>");
-
-        // Точка 51: Мусорный бак 
-        const bin51 = L.circleMarker([40.277596, 69.611914], urnStyle).addTo(map);
-        bin51.bindPopup("<b>Уличная урна</b><br>");
-
-        // Точка 52: Мусорный бак 
-        const bin52 = L.circleMarker([40.295089, 69.619780], urnStyle).addTo(map);
-        bin52.bindPopup("<b>Уличная урна</b><br>");
-
-
-
-
-
-
-
-    </script>
+    // Загрузить профиль при первом открытии
+    loadProfile();
+  </script>
 </body>
 </html>
