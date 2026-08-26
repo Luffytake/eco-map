@@ -9,39 +9,27 @@ from pydantic import BaseModel
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from aiogram.types import ReplyKeyboardRemove
 
 import db
 
-# Укажите токен бота прямо здесь для локального теста, если нет переменной окружения
 TOKEN = os.getenv("BOT_TOKEN", "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0")
-WEBAPP_URL = os.getenv("WEBAPP_URL", "https://your-app.onrender.com")
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# --- Lifespan: Управление фоновыми процессами ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Инициализация БД при старте
     db.init_db()
     print("Database connected. FastAPI server started successfully.")
-    
-    # Запуск поллинга бота в фоновом режиме
     polling_task = asyncio.create_task(dp.start_polling(bot))
     print("Bot polling started...")
-    
-    yield  # Сервер FastAPI работает
-    
-    # Остановка бота при завершении работы сервера
+    yield
     polling_task.cancel()
     await bot.session.close()
-    print("Bot polling stopped.")
 
-# Инициализация приложения FastAPI с lifespan
 app = FastAPI(title="Eco Khujand API", lifespan=lifespan)
 
-# Настройки CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -50,7 +38,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Pydantic Схемы ---
 class ReportData(BaseModel):
     user_id: int
     action_type: str
@@ -59,7 +46,6 @@ class ReportData(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
 
-# --- FastAPI Эндпоинты ---
 @app.get("/api/user/{user_id}")
 async def get_user(user_id: int):
     profile = db.get_user_profile(user_id)
@@ -69,9 +55,7 @@ async def get_user(user_id: int):
 
 @app.post("/api/report")
 async def submit_report(data: ReportData):
-    """Принимает отчёт из WebApp и начисляет эко-баллы."""
     user = db.get_user_profile(data.user_id)
-    
     if not user:
         db.register_user_if_not_exists(data.user_id, "user", "Эко Пользователь")
     
@@ -90,11 +74,11 @@ async def submit_report(data: ReportData):
             text=f"🌱 **Отчёт принят!**\n\nВам начислено: **+{data.points} эко-баллов**.\nВаш текущий баланс: **{updated_profile['points']} баллов**."
         )
     except Exception as e:
-        print(f"Ошибка отправки уведомления в Telegram: {e}")
+        print(f"Ошибка отправки сообщения: {e}")
 
     return {"status": "success", "profile": updated_profile}
 
-# --- Telegram Bot Обработчики ---
+# --- Обработка /start с очисткой экрана ---
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message):
     db.register_user_if_not_exists(
@@ -103,12 +87,12 @@ async def start_cmd(message: types.Message):
         full_name=message.from_user.full_name or ""
     )
     
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📱 Открыть Eco App", web_app=WebAppInfo(url=WEBAPP_URL))]
-    ])
+    # ReplyKeyboardRemove удаляет старые нижние кнопки (Профиль, Карта, Отчёт)
     await message.answer(
-        f"Привет, {message.from_user.first_name}! 🌿\nДобро пожаловать в **Eco Khujand**.\nСобирай мусор, сдавай пластик и получай эко-баллы!",
-        reply_markup=kb
+        f"Привет, {message.from_user.first_name}! 🌿\n\n"
+        f"Добро пожаловать в **Eco Khujand**.\n"
+        f"Нажмите на синюю кнопку **«Eco App»** внизу экрана, чтобы открыть карту, профиль и отправку отчётов.",
+        reply_markup=ReplyKeyboardRemove()
     )
 
 if __name__ == "__main__":
