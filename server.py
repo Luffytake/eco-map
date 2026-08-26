@@ -1,34 +1,18 @@
 import os
-import asyncio
-from contextlib import asynccontextmanager
-from typing import Optional
-
-from fastapi import FastAPI, HTTPException
+import sqlite3
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-
 from aiogram import Bot, Dispatcher, types
-from aiogram.filters import CommandStart
-from aiogram.types import ReplyKeyboardRemove
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-import db
+# Токен бота и Telegram ID
+BOT_TOKEN = "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"
+ADMIN_ID =  5581941983
 
-TOKEN = os.getenv("BOT_TOKEN", "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0")
-
-bot = Bot(token=TOKEN)
+bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    db.init_db()
-    print("Database connected. FastAPI server started successfully.")
-    polling_task = asyncio.create_task(dp.start_polling(bot))
-    print("Bot polling started...")
-    yield
-    polling_task.cancel()
-    await bot.session.close()
-
-app = FastAPI(title="Eco Khujand API", lifespan=lifespan)
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,63 +22,142 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class ReportData(BaseModel):
-    user_id: int
-    action_type: str
-    points: int
-    photo_url: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
+DB_NAME = "eco_khujand.db"
+
+def init_db():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            points INTEGER DEFAULT 0
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            action_type TEXT,
+            points INTEGER,
+            comment TEXT,
+            status TEXT DEFAULT 'pending'
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
 
 @app.get("/api/user/{user_id}")
 async def get_user(user_id: int):
-    profile = db.get_user_profile(user_id)
-    if not profile:
-        raise HTTPException(status_code=404, detail="User not found")
-    return profile
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT points FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    if not row:
+        cursor.execute("INSERT INTO users (user_id, points) VALUES (?, 0)", (user_id,))
+        conn.commit()
+        points = 0
+    else:
+        points = row[0]
+    conn.close()
+    return {"user_id": user_id, "points": points}
 
 @app.post("/api/report")
-async def submit_report(data: ReportData):
-    user = db.get_user_profile(data.user_id)
-    if not user:
-        db.register_user_if_not_exists(data.user_id, "user", "Эко Пользователь")
-    
-    updated_profile = db.add_points(
-        user_id=data.user_id,
-        points=data.points,
-        action_type=data.action_type,
-        photo_url=data.photo_url,
-        lat=data.latitude,
-        lon=data.longitude
+async def create_report(
+    user_id: int = Form(...),
+    action_type: str = Form(...),
+    points: int = Form(...),
+    comment: str = Form(None),
+    latitude: float = Form(None),
+    longitude: float = Form(None),
+    photo: UploadFile = File(...)
+):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO reports (user_id, action_type, points, comment, status) VALUES (?, ?, ?, ?, 'pending')",
+        (user_id, action_type, points, comment)
     )
-    
-    try:
-        await bot.send_message(
-            chat_id=data.user_id,
-            text=f"🌱 **Отчёт принят!**\n\nВам начислено: **+{data.points} эко-баллов**.\nВаш текущий баланс: **{updated_profile['points']} баллов**."
+    report_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
+    # Формируем клавиатуру модерации для админа
+    builder = InlineKeyboardBuilder()
+    builder.button(text="✅ Одобрить", callback_data=f"approve_{report_id}")
+    builder.button(text="❌ Отклонить", callback_data=f"reject_{report_id}")
+    builder.adjust(2)
+
+    caption = (
+        f"📩 <b>Новый эко-отчёт #{report_id}</b>\n\n"
+        f"<b>ID пользователя:</b> <code>{user_id}</code>\n"
+        f"<b>Действие:</b> {action_type} (+{points} баллов)\n"
+        f"<b>Комментарий:</b> {comment if comment else 'Отсутствует'}\n"
+        f"<b>Координаты:</b> {latitude or 'N/A'}, {longitude or 'N/A'}"
+    )
+
+    photo_bytes = await photo.read()
+    await bot.send_photo(
+        chat_id=ADMIN_ID,
+        photo=types.BufferedInputFile(photo_bytes, filename=photo.filename),
+        caption=caption,
+        parse_mode="HTML",
+        reply_markup=builder.as_markup()
+    )
+
+    return {"status": "success", "report_id": report_id}
+
+# Обработка решений админа
+@dp.callback_query(lambda c: c.data.startswith(("approve_", "reject_")))
+async def handle_moderation(callback_query: types.CallbackQuery):
+    action, report_id_str = callback_query.data.split("_")
+    report_id = int(report_id_str)
+
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, action_type, points, status FROM reports WHERE id = ?", (report_id,))
+    report = cursor.fetchone()
+
+    if not report or report[3] != "pending":
+        await callback_query.answer("Отчёт уже обработан!", show_alert=True)
+        conn.close()
+        return
+
+    user_id, action_type, points, _ = report
+
+    if action == "approve":
+        cursor.execute("UPDATE reports SET status = 'approved' WHERE id = ?", (report_id,))
+        cursor.execute("UPDATE users SET points = points + ? WHERE user_id = ?", (points, user_id))
+        conn.commit()
+        
+        await callback_query.message.edit_caption(
+            caption=callback_query.message.caption + "\n\n<b>Статус:</b> ✅ Одобрено",
+            parse_mode="HTML"
         )
-    except Exception as e:
-        print(f"Ошибка отправки сообщения: {e}")
+        try:
+            await bot.send_message(
+                chat_id=user_id,
+                text=f"🎉 Ваш отчёт «{action_type}» одобрен! Вам начислено +{points} эко-баллов."
+            )
+        except Exception:
+            pass
 
-    return {"status": "success", "profile": updated_profile}
+    elif action == "reject":
+        cursor.execute("UPDATE reports SET status = 'rejected' WHERE id = ?", (report_id,))
+        conn.commit()
+        
+        await callback_query.message.edit_caption(
+            caption=callback_query.message.caption + "\n\n<b>Статус:</b> ❌ Отклонено",
+            parse_mode="HTML"
+        )
+        try:
+            await bot.send_message(
+                chat_id=user_id,
+                text=f"❌ Ваш отчёт «{action_type}» был отклонён при модерации."
+            )
+        except Exception:
+            pass
 
-# --- Обработка /start с очисткой экрана ---
-@dp.message(CommandStart())
-async def start_cmd(message: types.Message):
-    db.register_user_if_not_exists(
-        user_id=message.from_user.id,
-        username=message.from_user.username or "",
-        full_name=message.from_user.full_name or ""
-    )
-    
-    # ReplyKeyboardRemove удаляет старые нижние кнопки (Профиль, Карта, Отчёт)
-    await message.answer(
-        f"Привет, {message.from_user.first_name}! 🌿\n\n"
-        f"Добро пожаловать в **Eco Khujand**.\n"
-        f"Нажмите на синюю кнопку **«Eco App»** внизу экрана, чтобы открыть карту, профиль и отправку отчётов.",
-        reply_markup=ReplyKeyboardRemove()
-    )
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
+    conn.close()
+    await callback_query.answer()
