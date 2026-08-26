@@ -108,6 +108,10 @@
         button.action-btn:active {
             opacity: 0.8;
         }
+        button.action-btn:disabled {
+            background-color: #555555;
+            cursor: not-allowed;
+        }
 
         /* Нижняя навигация */
         .nav-bar {
@@ -150,17 +154,22 @@
         <div class="container">
             <div class="card">
                 <h2>🌱 Отправить эко-отчёт</h2>
+                
                 <label for="action-type">Выберите действие:</label>
                 <select id="action-type">
-                    <option value="Уборка мусора">Уборка мусора (+50 баллов)</option>
-                    <option value="Сдача пластика">Сдача пластика (+30 баллов)</option>
-                    <option value="Сдача макулатуры">Сдача макулатуры (+20 баллов)</option>
+                    <option value="Уборка территории" data-points="30">🧹 Уборка территории (+30 баллов)</option>
+                    <option value="Сдача пластика / стекла" data-points="20">🍾 Сдача пластика / стекла (+20 баллов)</option>
+                    <option value="Сдача макулатуры" data-points="15">📦 Сдача макулатуры (+15 баллов)</option>
+                    <option value="Сигнал о переполнении" data-points="10">⚠️ Сигнал о переполненном баке (+10 баллов)</option>
                 </select>
 
-                <label>Фотография работы:</label>
+                <label for="photo-file">Фотография работы (обязательно):</label>
                 <input type="file" id="photo-file" accept="image/*">
 
-                <button class="action-btn" onclick="sendReport()">Отправить отчёт</button>
+                <label for="report-comment">Комментарий (необязательно):</label>
+                <input type="text" id="report-comment" placeholder="Например: Собрал 2 пакета пластика...">
+
+                <button class="action-btn" id="submit-btn" onclick="sendReport()">Отправить на проверку</button>
             </div>
         </div>
     </div>
@@ -341,7 +350,7 @@
         L.circleMarker([40.295089, 69.619780], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.295089, 69.619780)'>Маршрут 🚶‍♂️</button>");
 
         // --- Взаимодействие с API ---
-        const SERVER_URL = "http://localhost:8000"; // Замените на публичный URL при деплое (Render/Ngrok)
+        const SERVER_URL = "https://eco-khujand-bot.onrender.com"; // Укажите актуальный URL бэкенда
 
         async function loadProfile() {
             const userId = tg?.initDataUnsafe?.user?.id || 123456;
@@ -361,34 +370,56 @@
         }
 
         async function sendReport() {
-            const userId = tg?.initDataUnsafe?.user?.id || 123456;
-            const actionType = document.getElementById('action-type').value;
-            let points = 50;
+            const fileInput = document.getElementById('photo-file');
+            const actionSelect = document.getElementById('action-type');
+            const commentInput = document.getElementById('report-comment');
+            const submitBtn = document.getElementById('submit-btn');
 
-            if (actionType.includes("пластика")) points = 30;
-            if (actionType.includes("макулатуры")) points = 20;
+            if (!fileInput.files[0]) {
+                alert("Пожалуйста, прикрепите фотографию!");
+                return;
+            }
+
+            const selectedOption = actionSelect.options[actionSelect.selectedIndex];
+            const actionType = selectedOption.value;
+            const points = selectedOption.getAttribute('data-points');
+            const comment = commentInput.value.trim();
+            const userId = tg?.initDataUnsafe?.user?.id || 123456;
+
+            const formData = new FormData();
+            formData.append('user_id', userId);
+            formData.append('action_type', actionType);
+            formData.append('points', points);
+            formData.append('comment', comment);
+            formData.append('photo', fileInput.files[0]);
+
+            if (userLocation) {
+                formData.append('latitude', userLocation[0]);
+                formData.append('longitude', userLocation[1]);
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerText = "Отправка...";
 
             try {
                 const res = await fetch(`${SERVER_URL}/api/report`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: userId,
-                        action_type: actionType,
-                        points: points,
-                        latitude: userLocation ? userLocation[0] : null,
-                        longitude: userLocation ? userLocation[1] : null
-                    })
+                    body: formData
                 });
 
                 if (res.ok) {
-                    alert("Отчёт успешно отправлен!");
+                    alert("Отчёт успешно отправлен! Модератор проверит его в ближайшее время.");
+                    fileInput.value = "";
+                    commentInput.value = "";
                     switchTab('profile');
                 } else {
-                    alert("Ошибка отправки отчёта.");
+                    alert("Ошибка при отправке отчёта. Попробуйте ещё раз.");
                 }
             } catch (e) {
                 alert("Не удалось связаться с сервером.");
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerText = "Отправить на проверку";
             }
         }
 
@@ -396,4 +427,4 @@
         loadProfile();
     </script>
 </body>
-</html>
+</html>  
