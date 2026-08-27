@@ -1,21 +1,17 @@
 import os
-import asyncio
+import sqlite3
+import requests
 from typing import Optional
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, Form, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
-
-# --- НАСТРОЙКИ И ИНИЦИАЛИЗАЦИЯ ---
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0")
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "5581941983")  # ID чата модерации
-
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher()
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(title="Eco Khujand API")
 
-# 1. Настройка CORS для Telegram WebApp
+# --- Настройки бота и админа ---
+BOT_TOKEN = "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"  # Например: "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
+ADMIN_ID = 5581941983            # Твой Telegram ID (число)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,65 +20,118 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- ИВЕНТЫ ЗАПУСКА ---
-@app.on_event("startup")
-async def startup_event():
-    # Запускаем поллинг бота в фоновом режиме вместе с FastAPI
-    asyncio.create_task(dp.start_polling(bot))
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
-# --- ЭНДПОИНТЫ API ---
+DB_NAME = "eco_khujand.db"
+
+def init_db():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            points INTEGER DEFAULT 0
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            action_type TEXT,
+            points INTEGER,
+            comment TEXT,
+            latitude REAL,
+            longitude REAL,
+            photo_path TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
+
+# Вспомогательная функция отправки сообщения админу в Telegram
+def send_telegram_notification(photo_path: str, caption_text: str):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
+    try:
+        with open(photo_path, "rb") as photo_file:
+            payload = {"chat_id": ADMIN_ID, "caption": caption_text, "parse_mode": "HTML"}
+            files = {"photo": photo_file}
+            requests.post(url, data=payload, files=files, timeout=10)
+    except Exception as e:
+        print(f"Ошибка отправки уведомления в Telegram: {e}")
+
 @app.get("/")
-async def read_root():
+def read_root():
     return {"status": "ok", "message": "Eco Khujand Server is running"}
 
+@app.get("/api/user/{user_id}")
+def get_user_profile(user_id: int):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT points FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    
+    if not row:
+        cursor.execute("INSERT INTO users (user_id, points) VALUES (?, 0)", (user_id,))
+        conn.commit()
+        points = 0
+    else:
+        points = row[0]
+        
+    conn.close()
+    return {"user_id": user_id, "points": points}
+
 @app.post("/api/report")
-async def send_report(
+async def receive_report(
     user_id: int = Form(...),
-    username: Optional[str] = Form(None),
     action_type: str = Form(...),
     points: int = Form(...),
-    comment: Optional[str] = Form(None),
+    comment: Optional[str] = Form(""),
     latitude: Optional[float] = Form(None),
     longitude: Optional[float] = Form(None),
     photo: UploadFile = File(...)
 ):
     try:
-        # Чтение загруженного файла в память
-        photo_bytes = await photo.read()
-        input_file = BufferedInputFile(photo_bytes, filename=photo.filename)
+        photo_filename = f"{user_id}_{photo.filename}"
+        photo_path = os.path.join(UPLOAD_DIR, photo_filename)
+        
+        with open(photo_path, "wb") as buffer:
+            content = await photo.read()
+            buffer.write(content)
 
-        # Формирование текста сообщения для админов
-        user_info = f"@{username}" if username else f"ID: {user_id}"
-        caption_text = (
-            f"🌱 <b>Новый эко-отчёт!</b>\n\n"
-            f"👤 <b>Пользователь:</b> {user_info}\n"
-            f"🎯 <b>Действие:</b> {action_type}\n"
-            f"⭐ <b>Баллы:</b> +{points}\n"
+        # Сохранение в БД
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO reports (user_id, action_type, points, comment, latitude, longitude, photo_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, action_type, points, comment, latitude, longitude, photo_path))
+
+        cursor.execute("""
+            INSERT INTO users (user_id, points) VALUES (?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET points = points + ?
+        """, (user_id, points, points))
+
+        conn.commit()
+        conn.close()
+
+        # Формируем и отправляем уведомление админу в Telegram
+        loc_str = f"{latitude}, {longitude}" if latitude and longitude else "Не указаны"
+        caption = (
+            f"📥 <b>Новый эко-отчёт!</b>\n\n"
+            f"👤 <b>ID пользователя:</b> <code>{user_id}</code>\n"
+            f"🎯 <b>Действие:</b> {action_type} (+{points} баллов)\n"
+            f"💬 <b>Комментарий:</b> {comment or 'Отсутствует'}\n"
+            f"📍 <b>Координаты:</b> {loc_str}"
         )
-        if comment:
-            caption_text += f"💬 <b>Комментарий:</b> {comment}\n"
-        if latitude and longitude:
-            caption_text += f"📍 <b>Геолокация:</b> {latitude:.5f}, {longitude:.5f}\n"
+        send_telegram_notification(photo_path, caption)
 
-        # Клавиатура модерации
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(text="✅ Одобрить", callback_data=f"approve_{user_id}_{points}"),
-                InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject_{user_id}")
-            ]
-        ])
-
-        # Отправка фото в чат модератора
-        await bot.send_photo(
-            chat_id=ADMIN_CHAT_ID,
-            photo=input_file,
-            caption=caption_text,
-            parse_mode="HTML",
-            reply_markup=keyboard
-        )
-
-        return {"status": "success", "message": "Report submitted successfully"}
+        return {"status": "success", "message": "Отчёт успешно сохранён!", "added_points": points}
 
     except Exception as e:
-        print(f"Error processing report: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}")
