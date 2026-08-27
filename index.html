@@ -67,7 +67,7 @@
             width: 100%;
         }
 
-        /* Кнопка ручного обновления геолокации поверх карты */
+        /* Кнопка обновления геолокации */
         .locate-btn {
             position: absolute;
             top: 10px;
@@ -87,7 +87,7 @@
             opacity: 0.8;
         }
 
-        /* Формы и элементы интерфейса */
+        /* Формы и интерфейс */
         .container {
             padding: 16px;
         }
@@ -288,7 +288,6 @@
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     userLocation = [position.coords.latitude, position.coords.longitude];
-                    
                     map.setView(userLocation, 16);
 
                     if (window.userMarker) {
@@ -308,7 +307,7 @@
                     let errorMsg = "Не удалось определить местоположение.";
                     switch(error.code) {
                         case error.PERMISSION_DENIED:
-                            errorMsg = "Доступ к геолокации запрещен. Включите доступ к геоданным в Telegram/браузере.";
+                            errorMsg = "Доступ к геолокации запрещен. Включите геоданные в настройках.";
                             break;
                         case error.POSITION_UNAVAILABLE:
                             errorMsg = "Сигнал GPS недоступен.";
@@ -330,7 +329,7 @@
         // --- Построение маршрута ---
         function buildRoute(destLat, destLng) {
             if (!userLocation) {
-                alert("Сначала укажите или обновите ваше местоположение (кнопка 📍 Где я?)");
+                alert("Сначала укажите ваше местоположение (кнопка 📍 Где я?)");
                 requestLocation();
                 return;
             }
@@ -426,6 +425,7 @@
             }
         }
 
+        // --- Обновлённая функция отправки отчёта с подробной отладкой ---
         async function sendReport() {
             const fileInput = document.getElementById('photo-file');
             const actionSelect = document.getElementById('action-type');
@@ -465,22 +465,23 @@
                 });
 
                 if (res.ok) {
-                    alert("Отчёт успешно отправлен! Модератор проверит его в ближайшее время.");
+                    alert("Отчёт успешно отправлен!");
                     fileInput.value = "";
                     commentInput.value = "";
                     switchTab('profile');
                 } else {
-                    alert("Ошибка при отправке отчёта. Попробуйте ещё раз.");
+                    const errText = await res.text();
+                    alert(`Ошибка сервера (${res.status}): ${errText}`);
                 }
             } catch (e) {
-                alert("Не удалось связаться с сервером.");
+                alert(`Ошибка сети или CORS: ${e.message}. Проверьте, проснулся ли сервер Render.`);
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.innerText = "Отправить на проверку";
             }
         }
 
-        // Запуск определения местоположения и загрузка данных профиля
+        // Запуск
         requestLocation();
         loadProfile();
     </script>
