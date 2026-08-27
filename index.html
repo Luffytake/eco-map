@@ -212,7 +212,14 @@
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
 
             document.getElementById(`tab-${tabName}`).classList.add('active');
-            event.currentTarget.classList.add('active');
+            
+            // Находим кнопку, соответствующую вкладке
+            const targetBtn = Array.from(document.querySelectorAll('.nav-item')).find(btn => 
+                btn.getAttribute('onclick')?.includes(tabName)
+            );
+            if (targetBtn) {
+                targetBtn.classList.add('active');
+            }
 
             if (tabName === 'map') {
                 setTimeout(() => map.invalidateSize(), 100);
@@ -350,7 +357,7 @@
         L.circleMarker([40.295089, 69.619780], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.295089, 69.619780)'>Маршрут 🚶‍♂️</button>");
 
         // --- Взаимодействие с API ---
-        const SERVER_URL = "https://eco-khujand-bot.onrender.com"; // Укажите актуальный URL бэкенда
+        const SERVER_URL = "https://eco-khujand-bot.onrender.com";
 
         async function loadProfile() {
             const userId = tg?.initDataUnsafe?.user?.id || 123456;
@@ -427,4 +434,4 @@
         loadProfile();
     </script>
 </body>
-</html>  
+</html>
