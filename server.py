@@ -1,19 +1,21 @@
 import os
-import sqlite3
+import asyncio
+from typing import Optional
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
 
-# Токен бота и Telegram ID
-BOT_TOKEN = "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"
-ADMIN_ID =  5581941983
+# --- НАСТРОЙКИ И ИНИЦИАЛИЗАЦИЯ ---
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0")
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "5581941983")  # ID чата модерации
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
-app = FastAPI()
 
+app = FastAPI(title="Eco Khujand API")
+
+# 1. Настройка CORS для Telegram WebApp
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,142 +24,65 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DB_NAME = "eco_khujand.db"
+# --- ИВЕНТЫ ЗАПУСКА ---
+@app.on_event("startup")
+async def startup_event():
+    # Запускаем поллинг бота в фоновом режиме вместе с FastAPI
+    asyncio.create_task(dp.start_polling(bot))
 
-def init_db():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
-            points INTEGER DEFAULT 0
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS reports (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            action_type TEXT,
-            points INTEGER,
-            comment TEXT,
-            status TEXT DEFAULT 'pending'
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-init_db()
-
-@app.get("/api/user/{user_id}")
-async def get_user(user_id: int):
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("SELECT points FROM users WHERE user_id = ?", (user_id,))
-    row = cursor.fetchone()
-    if not row:
-        cursor.execute("INSERT INTO users (user_id, points) VALUES (?, 0)", (user_id,))
-        conn.commit()
-        points = 0
-    else:
-        points = row[0]
-    conn.close()
-    return {"user_id": user_id, "points": points}
+# --- ЭНДПОИНТЫ API ---
+@app.get("/")
+async def read_root():
+    return {"status": "ok", "message": "Eco Khujand Server is running"}
 
 @app.post("/api/report")
-async def create_report(
+async def send_report(
     user_id: int = Form(...),
+    username: Optional[str] = Form(None),
     action_type: str = Form(...),
     points: int = Form(...),
-    comment: str = Form(None),
-    latitude: float = Form(None),
-    longitude: float = Form(None),
+    comment: Optional[str] = Form(None),
+    latitude: Optional[float] = Form(None),
+    longitude: Optional[float] = Form(None),
     photo: UploadFile = File(...)
 ):
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO reports (user_id, action_type, points, comment, status) VALUES (?, ?, ?, ?, 'pending')",
-        (user_id, action_type, points, comment)
-    )
-    report_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
+    try:
+        # Чтение загруженного файла в память
+        photo_bytes = await photo.read()
+        input_file = BufferedInputFile(photo_bytes, filename=photo.filename)
 
-    # Формируем клавиатуру модерации для админа
-    builder = InlineKeyboardBuilder()
-    builder.button(text="✅ Одобрить", callback_data=f"approve_{report_id}")
-    builder.button(text="❌ Отклонить", callback_data=f"reject_{report_id}")
-    builder.adjust(2)
-
-    caption = (
-        f"📩 <b>Новый эко-отчёт #{report_id}</b>\n\n"
-        f"<b>ID пользователя:</b> <code>{user_id}</code>\n"
-        f"<b>Действие:</b> {action_type} (+{points} баллов)\n"
-        f"<b>Комментарий:</b> {comment if comment else 'Отсутствует'}\n"
-        f"<b>Координаты:</b> {latitude or 'N/A'}, {longitude or 'N/A'}"
-    )
-
-    photo_bytes = await photo.read()
-    await bot.send_photo(
-        chat_id=ADMIN_ID,
-        photo=types.BufferedInputFile(photo_bytes, filename=photo.filename),
-        caption=caption,
-        parse_mode="HTML",
-        reply_markup=builder.as_markup()
-    )
-
-    return {"status": "success", "report_id": report_id}
-
-# Обработка решений админа
-@dp.callback_query(lambda c: c.data.startswith(("approve_", "reject_")))
-async def handle_moderation(callback_query: types.CallbackQuery):
-    action, report_id_str = callback_query.data.split("_")
-    report_id = int(report_id_str)
-
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id, action_type, points, status FROM reports WHERE id = ?", (report_id,))
-    report = cursor.fetchone()
-
-    if not report or report[3] != "pending":
-        await callback_query.answer("Отчёт уже обработан!", show_alert=True)
-        conn.close()
-        return
-
-    user_id, action_type, points, _ = report
-
-    if action == "approve":
-        cursor.execute("UPDATE reports SET status = 'approved' WHERE id = ?", (report_id,))
-        cursor.execute("UPDATE users SET points = points + ? WHERE user_id = ?", (points, user_id))
-        conn.commit()
-        
-        await callback_query.message.edit_caption(
-            caption=callback_query.message.caption + "\n\n<b>Статус:</b> ✅ Одобрено",
-            parse_mode="HTML"
+        # Формирование текста сообщения для админов
+        user_info = f"@{username}" if username else f"ID: {user_id}"
+        caption_text = (
+            f"🌱 <b>Новый эко-отчёт!</b>\n\n"
+            f"👤 <b>Пользователь:</b> {user_info}\n"
+            f"🎯 <b>Действие:</b> {action_type}\n"
+            f"⭐ <b>Баллы:</b> +{points}\n"
         )
-        try:
-            await bot.send_message(
-                chat_id=user_id,
-                text=f"🎉 Ваш отчёт «{action_type}» одобрен! Вам начислено +{points} эко-баллов."
-            )
-        except Exception:
-            pass
+        if comment:
+            caption_text += f"💬 <b>Комментарий:</b> {comment}\n"
+        if latitude and longitude:
+            caption_text += f"📍 <b>Геолокация:</b> {latitude:.5f}, {longitude:.5f}\n"
 
-    elif action == "reject":
-        cursor.execute("UPDATE reports SET status = 'rejected' WHERE id = ?", (report_id,))
-        conn.commit()
-        
-        await callback_query.message.edit_caption(
-            caption=callback_query.message.caption + "\n\n<b>Статус:</b> ❌ Отклонено",
-            parse_mode="HTML"
+        # Клавиатура модерации
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ Одобрить", callback_data=f"approve_{user_id}_{points}"),
+                InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject_{user_id}")
+            ]
+        ])
+
+        # Отправка фото в чат модератора
+        await bot.send_photo(
+            chat_id=ADMIN_CHAT_ID,
+            photo=input_file,
+            caption=caption_text,
+            parse_mode="HTML",
+            reply_markup=keyboard
         )
-        try:
-            await bot.send_message(
-                chat_id=user_id,
-                text=f"❌ Ваш отчёт «{action_type}» был отклонён при модерации."
-            )
-        except Exception:
-            pass
 
-    conn.close()
-    await callback_query.answer()
+        return {"status": "success", "message": "Report submitted successfully"}
+
+    except Exception as e:
+        print(f"Error processing report: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
