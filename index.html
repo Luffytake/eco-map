@@ -67,6 +67,26 @@
             width: 100%;
         }
 
+        /* Кнопка ручного обновления геолокации поверх карты */
+        .locate-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: #1e1e1e;
+            color: #fff;
+            border: 1px solid #333;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+        }
+        .locate-btn:active {
+            opacity: 0.8;
+        }
+
         /* Формы и элементы интерфейса */
         .container {
             padding: 16px;
@@ -146,6 +166,7 @@
 
     <!-- Вкладка 1: Карта -->
     <div id="tab-map" class="tab-content active">
+        <button class="locate-btn" onclick="requestLocation()">📍 Где я?</button>
         <div id="map"></div>
     </div>
 
@@ -213,7 +234,6 @@
 
             document.getElementById(`tab-${tabName}`).classList.add('active');
             
-            // Находим кнопку, соответствующую вкладке
             const targetBtn = Array.from(document.querySelectorAll('.nav-item')).find(btn => 
                 btn.getAttribute('onclick')?.includes(tabName)
             );
@@ -259,21 +279,50 @@
         let routingControl = null;
 
         // --- Определение геолокации ---
-        if (navigator.geolocation) {
+        function requestLocation() {
+            if (!navigator.geolocation) {
+                alert("Геолокация не поддерживается вашим устройством/браузером.");
+                return;
+            }
+
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     userLocation = [position.coords.latitude, position.coords.longitude];
-                    L.circleMarker(userLocation, {
-                        radius: 8,
-                        fillColor: "#E91E63",
-                        color: "#ffffff",
-                        weight: 2,
-                        opacity: 1,
-                        fillOpacity: 0.9
-                    }).addTo(map).bindPopup("<b>Вы здесь</b>");
+                    
+                    map.setView(userLocation, 16);
+
+                    if (window.userMarker) {
+                        window.userMarker.setLatLng(userLocation);
+                    } else {
+                        window.userMarker = L.circleMarker(userLocation, {
+                            radius: 8,
+                            fillColor: "#E91E63",
+                            color: "#ffffff",
+                            weight: 2,
+                            opacity: 1,
+                            fillOpacity: 0.9
+                        }).addTo(map).bindPopup("<b>Вы здесь</b>").openPopup();
+                    }
                 },
                 (error) => {
-                    console.warn("Геолокация недоступна");
+                    let errorMsg = "Не удалось определить местоположение.";
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            errorMsg = "Доступ к геолокации запрещен. Включите доступ к геоданным в Telegram/браузере.";
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            errorMsg = "Сигнал GPS недоступен.";
+                            break;
+                        case error.TIMEOUT:
+                            errorMsg = "Превышено время ожидания сигнала GPS.";
+                            break;
+                    }
+                    alert(errorMsg);
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
                 }
             );
         }
@@ -281,7 +330,8 @@
         // --- Построение маршрута ---
         function buildRoute(destLat, destLng) {
             if (!userLocation) {
-                alert("Не удалось определить ваше местоположение. Включите GPS!");
+                alert("Сначала укажите или обновите ваше местоположение (кнопка 📍 Где я?)");
+                requestLocation();
                 return;
             }
 
@@ -430,8 +480,9 @@
             }
         }
 
-        // Загрузка начальных данных
+        // Запуск определения местоположения и загрузка данных профиля
+        requestLocation();
         loadProfile();
     </script>
 </body>
-</html>
+</html>    
