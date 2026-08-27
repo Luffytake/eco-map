@@ -8,10 +8,11 @@ from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(title="Eco Khujand API")
 
-# --- Настройки бота и админа ---
-BOT_TOKEN = "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"  # Например: "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
-ADMIN_ID = 5581941983            # Твой Telegram ID (число)
+# --- Настройки Telegram-бота и администратора ---
+BOT_TOKEN = "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"  
+ADMIN_ID = 5581941983                # Укате ваш Telegram ID
 
+# --- 1. Настройка CORS ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,27 +21,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Папка для загрузки фото отчётов
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 DB_NAME = "eco_khujand.db"
 
+# --- 2. Инициализация и миграция базы данных SQLite ---
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
+    
+    # Таблица пользователей
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
             points INTEGER DEFAULT 0
         )
     """)
+    
+    # Таблица отчётов
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS reports (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
             action_type TEXT,
-            points INTEGER,
             comment TEXT,
             latitude REAL,
             longitude REAL,
@@ -48,13 +54,24 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    
+    # Миграция: автоматическое добавление колонки points, если её нет
+    cursor.execute("PRAGMA table_info(reports)")
+    columns = [column[1] for column in cursor.fetchall()]
+    if "points" not in columns:
+        cursor.execute("ALTER TABLE reports ADD COLUMN points INTEGER DEFAULT 0")
+
     conn.commit()
     conn.close()
 
 init_db()
 
-# Вспомогательная функция отправки сообщения админу в Telegram
+# --- 3. Вспомогательная функция отправки фото админу ---
 def send_telegram_notification(photo_path: str, caption_text: str):
+    if BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
+        print("BOT_TOKEN не указан, уведомление в Telegram пропущено.")
+        return
+        
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
     try:
         with open(photo_path, "rb") as photo_file:
@@ -63,6 +80,8 @@ def send_telegram_notification(photo_path: str, caption_text: str):
             requests.post(url, data=payload, files=files, timeout=10)
     except Exception as e:
         print(f"Ошибка отправки уведомления в Telegram: {e}")
+
+# --- 4. Эндпоинты API ---
 
 @app.get("/")
 def read_root():
@@ -96,6 +115,7 @@ async def receive_report(
     photo: UploadFile = File(...)
 ):
     try:
+        # Сохранение файла
         photo_filename = f"{user_id}_{photo.filename}"
         photo_path = os.path.join(UPLOAD_DIR, photo_filename)
         
@@ -103,7 +123,7 @@ async def receive_report(
             content = await photo.read()
             buffer.write(content)
 
-        # Сохранение в БД
+        # Сохранение отчёта и начисление баллов в БД
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         
@@ -120,7 +140,7 @@ async def receive_report(
         conn.commit()
         conn.close()
 
-        # Формируем и отправляем уведомление админу в Telegram
+        # Отправка уведомления администратору
         loc_str = f"{latitude}, {longitude}" if latitude and longitude else "Не указаны"
         caption = (
             f"📥 <b>Новый эко-отчёт!</b>\n\n"
