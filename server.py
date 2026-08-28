@@ -9,8 +9,8 @@ from fastapi.staticfiles import StaticFiles
 app = FastAPI(title="Eco Khujand API")
 
 # --- Настройки Telegram-бота и администратора ---
-BOT_TOKEN = "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"  
-ADMIN_ID = 5581941983                # Укате ваш Telegram ID
+BOT_TOKEN = "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"  # Укажите токен вашего бота
+ADMIN_ID = 5581941983                # Укажите ваш Telegram ID
 
 # --- 1. Настройка CORS ---
 app.add_middleware(
@@ -28,7 +28,7 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 DB_NAME = "eco_khujand.db"
 
-# --- 2. Инициализация и миграция базы данных SQLite ---
+# --- 2. Инициализация и полная миграция базы данных SQLite ---
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -41,12 +41,13 @@ def init_db():
         )
     """)
     
-    # Таблица отчётов
+    # Таблица отчётов (создание, если таблицы ещё нет)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS reports (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
             action_type TEXT,
+            points INTEGER DEFAULT 0,
             comment TEXT,
             latitude REAL,
             longitude REAL,
@@ -55,11 +56,21 @@ def init_db():
         )
     """)
     
-    # Миграция: автоматическое добавление колонки points, если её нет
+    # Проверка существующих колонок и добавление всех недостающих
     cursor.execute("PRAGMA table_info(reports)")
-    columns = [column[1] for column in cursor.fetchall()]
-    if "points" not in columns:
-        cursor.execute("ALTER TABLE reports ADD COLUMN points INTEGER DEFAULT 0")
+    existing_columns = [column[1] for column in cursor.fetchall()]
+    
+    required_columns = {
+        "points": "INTEGER DEFAULT 0",
+        "comment": "TEXT",
+        "latitude": "REAL",
+        "longitude": "REAL",
+        "photo_path": "TEXT"
+    }
+    
+    for col_name, col_type in required_columns.items():
+        if col_name not in existing_columns:
+            cursor.execute(f"ALTER TABLE reports ADD COLUMN {col_name} {col_type}")
 
     conn.commit()
     conn.close()
@@ -154,4 +165,4 @@ async def receive_report(
         return {"status": "success", "message": "Отчёт успешно сохранён!", "added_points": points}
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}") 
