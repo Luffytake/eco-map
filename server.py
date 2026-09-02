@@ -8,8 +8,8 @@ from fastapi import FastAPI, Form, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-BOT_TOKEN = "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"  # Укажи токен бота
-ADMIN_ID = 5581941983                # Укажи свой Telegram ID
+BOT_TOKEN = "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"  # Токен бота
+ADMIN_ID = 5581941983                                 # Telegram ID админа
 
 DB_NAME = "eco_khujand.db"
 UPLOAD_DIR = "uploads"
@@ -253,6 +253,78 @@ def get_user_profile(user_id: int):
             "tree": user_medals.get("tree", "locked")
         }
     }
+
+# --- ОСНОВНОЙ ЭНДПОИНТ ОТПРАВКИ ЭКО-ОТЧЁТОВ ---
+@app.post("/api/report")
+async def create_general_report(
+    user_id: int = Form(...),
+    action_type: str = Form("Эко-активность"),
+    points: int = Form(0),
+    comment: Optional[str] = Form(""),
+    latitude: Optional[float] = Form(None),
+    longitude: Optional[float] = Form(None),
+    photo: Optional[UploadFile] = File(None)
+):
+    try:
+        photo_path = ""
+        if photo:
+            photo_filename = f"report_{user_id}_{photo.filename}"
+            photo_path = os.path.join(UPLOAD_DIR, photo_filename)
+            with open(photo_path, "wb") as f:
+                f.write(await photo.read())
+
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO reports (user_id, action_type, points, comment, latitude, longitude, photo_path, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
+        """, (user_id, action_type, points, comment, latitude, longitude, photo_path))
+        
+        report_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+        # Отправка уведомления администратору в Telegram
+        if BOT_TOKEN != "YOUR_BOT_TOKEN_HERE":
+            caption = (
+                f"🌱 <b>Новый эко-отчёт #{report_id}</b>\n"
+                f"<b>ID пользователя:</b> {user_id}\n"
+                f"<b>Тип:</b> {action_type}\n"
+                f"<b>Баллы:</b> +{points}\n"
+                f"<b>Комментарий:</b> {comment or 'Нет'}"
+            )
+            keyboard = {
+                "inline_keyboard": [
+                    [
+                        {"text": "✅ Одобрить", "callback_data": f"approve_{report_id}"},
+                        {"text": "❌ Отклонить", "callback_data": f"reject_{report_id}"}
+                    ]
+                ]
+            }
+
+            if photo_path and os.path.exists(photo_path):
+                url_photo = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
+                with open(photo_path, "rb") as f:
+                    requests.post(url_photo, data={
+                        "chat_id": ADMIN_ID,
+                        "caption": caption,
+                        "parse_mode": "HTML",
+                        "reply_markup": str(keyboard).replace("'", '"')
+                    }, files={"photo": f})
+            else:
+                url_msg = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+                requests.post(url_msg, json={
+                    "chat_id": ADMIN_ID,
+                    "text": caption,
+                    "parse_mode": "HTML",
+                    "reply_markup": keyboard
+                })
+
+        return {"status": "success", "message": "Отчёт успешно отправлен на модерацию!"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/report/medal")
 async def receive_medal_report(
