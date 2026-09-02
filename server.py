@@ -2,21 +2,52 @@ import os
 import asyncio
 import sqlite3
 import requests
-from typing import Optional
+from typing import Optional, List
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Form, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-# --- Настройки Telegram-бота и администратора ---
-BOT_TOKEN = "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"  # Укажи токен бота от BotFather
+BOT_TOKEN = "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"  # Укажи токен бота
 ADMIN_ID = 5581941983                # Укажи свой Telegram ID
 
 DB_NAME = "eco_khujand.db"
 UPLOAD_DIR = "uploads"
+STATIC_DIR = "static"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(STATIC_DIR, exist_ok=True)
 
-# --- 1. Инициализация и миграция базы данных ---
+# --- Расчёт рангов ---
+def calculate_rank(points: int):
+    if points < 50:
+        return {
+            "title": "Эко-Новичок",
+            "rank_code": "РАНГ I",
+            "current_points": points,
+            "max_points": 50,
+            "progress_pct": min(100, int((points / 50) * 100)),
+            "icon": "/static/rank_1.png"
+        }
+    elif points < 200:
+        return {
+            "title": "Эко-Защитник",
+            "rank_code": "РАНГ II",
+            "current_points": points - 50,
+            "max_points": 150,
+            "progress_pct": min(100, int(((points - 50) / 150) * 100)),
+            "icon": "/static/rank_2.png"
+        }
+    else:
+        return {
+            "title": "Эко-Активист",
+            "rank_code": "РАНГ III",
+            "current_points": points,
+            "max_points": 500,
+            "progress_pct": 100 if points >= 500 else int((points / 500) * 100),
+            "icon": "/static/rank_3.png"
+        }
+
+# --- Инициализация и миграция БД ---
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -24,6 +55,8 @@ def init_db():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
+            username TEXT DEFAULT '',
+            avatar_url TEXT DEFAULT '',
             points INTEGER DEFAULT 0
         )
     """)
@@ -42,32 +75,27 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    
-    # Миграция колонок
-    cursor.execute("PRAGMA table_info(reports)")
-    existing_columns = [column[1] for column in cursor.fetchall()]
-    
-    required_columns = {
-        "points": "INTEGER DEFAULT 0",
-        "comment": "TEXT",
-        "latitude": "REAL",
-        "longitude": "REAL",
-        "photo_path": "TEXT",
-        "status": "TEXT DEFAULT 'pending'"
-    }
-    
-    for col_name, col_type in required_columns.items():
-        if col_name not in existing_columns:
-            cursor.execute(f"ALTER TABLE reports ADD COLUMN {col_name} {col_type}")
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS medals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            medal_key TEXT,
+            photo_before TEXT,
+            photo_after TEXT,
+            status TEXT DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, medal_key)
+        )
+    """)
+    
     conn.commit()
     conn.close()
 
 init_db()
 
-# --- 2. Управление фоновым обработчиком кнопок (Long Polling) ---
+# --- Фоновый опрос кнопок Telegram ---
 async def process_telegram_updates():
-    """Фоновый процесс для приема нажатий inline-кнопок админом"""
     if BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
         return
 
@@ -84,7 +112,7 @@ async def process_telegram_updates():
                     if "callback_query" in update:
                         await handle_callback_query(update["callback_query"])
         except Exception as e:
-            print(f"Ошибка polling Telegram: {e}")
+            print(f"Ошибка polling: {e}")
         await asyncio.sleep(1)
 
 async def handle_callback_query(callback):
@@ -93,76 +121,82 @@ async def handle_callback_query(callback):
     chat_id = callback["message"]["chat"]["id"]
     message_id = callback["message"]["message_id"]
 
-    if not data.startswith("approve_") and not data.startswith("reject_"):
-        return
-
-    action, report_id = data.split("_", 1)
-    report_id = int(report_id)
-
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("SELECT user_id, action_type, points, status FROM reports WHERE id = ?", (report_id,))
-    report = cursor.fetchone()
 
-    if not report:
+    if data.startswith("approve_medal_") or data.startswith("reject_medal_"):
+        parts = data.split("_")
+        action = parts[0]
+        medal_db_id = int(parts[2])
+
+        cursor.execute("SELECT user_id, medal_key, status FROM medals WHERE id = ?", (medal_db_id,))
+        m = cursor.fetchone()
+        if m and m[2] == "pending":
+            u_id, m_key, _ = m
+            if action == "approve":
+                cursor.execute("UPDATE medals SET status = 'approved' WHERE id = ?", (medal_db_id,))
+                msg_user = f"🏅 Поздравляем! Ваша медаль «{m_key}» была одобрена!"
+                status_lbl = "✅ <b>МЕДАЛЬ ОДОБРЕНА</b>"
+            else:
+                cursor.execute("UPDATE medals SET status = 'rejected' WHERE id = ?", (medal_db_id,))
+                msg_user = f"❌ Заявка на медаль «{m_key}» была отклонена."
+                status_lbl = "❌ <b>МЕДАЛЬ ОТКЛОНЕНА</b>"
+            conn.commit()
+
+            requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery", json={"callback_query_id": callback_id})
+            requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={
+                "chat_id": chat_id,
+                "text": f"Решение по медали #{medal_db_id}: {status_lbl}",
+                "parse_mode": "HTML"
+            })
+            requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={
+                "chat_id": u_id,
+                "text": msg_user
+            })
         conn.close()
         return
 
-    user_id, action_type, points, status = report
+    if data.startswith("approve_") or data.startswith("reject_"):
+        action, report_id = data.split("_", 1)
+        report_id = int(report_id)
 
-    if status != "pending":
-        # Если отчет уже был обработан
-        requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery", json={
-            "callback_query_id": callback_id,
-            "text": "Этот отчёт уже был обработан!"
-        })
-        conn.close()
-        return
+        cursor.execute("SELECT user_id, action_type, points, status FROM reports WHERE id = ?", (report_id,))
+        report = cursor.fetchone()
 
-    if action == "approve":
-        # Обновляем статус отчёта и начисляем баллы
-        cursor.execute("UPDATE reports SET status = 'approved' WHERE id = ?", (report_id,))
-        cursor.execute("""
-            INSERT INTO users (user_id, points) VALUES (?, ?)
-            ON CONFLICT(user_id) DO UPDATE SET points = points + ?
-        """, (user_id, points, points))
-        conn.commit()
+        if report and report[3] == "pending":
+            user_id, action_type, points, status = report
+            if action == "approve":
+                cursor.execute("UPDATE reports SET status = 'approved' WHERE id = ?", (report_id,))
+                cursor.execute("""
+                    INSERT INTO users (user_id, points) VALUES (?, ?)
+                    ON CONFLICT(user_id) DO UPDATE SET points = points + ?
+                """, (user_id, points, points))
+                conn.commit()
+                status_text = f"✅ <b>ОДОБРЕНО</b> (+{points} баллов)"
+                user_msg = f"🎉 Ваш отчёт «{action_type}» одобрен! Вам начислено +{points} баллов."
+            else:
+                cursor.execute("UPDATE reports SET status = 'rejected' WHERE id = ?", (report_id,))
+                conn.commit()
+                status_text = "❌ <b>ОТКЛОНЕНО</b>"
+                user_msg = f"❌ Ваш отчёт «{action_type}» был отклонён."
 
-        status_text = f"✅ <b>ОДОБРЕНО</b> (+{points} баллов)"
-        user_msg = f"🎉 Ваш отчёт «{action_type}» одобрен! Вам начислено +{points} баллов."
-
-    else:
-        # Отклоняем отчёт
-        cursor.execute("UPDATE reports SET status = 'rejected' WHERE id = ?", (report_id,))
-        conn.commit()
-
-        status_text = "❌ <b>ОТКЛОНЕНО</b>"
-        user_msg = f"❌ Ваш отчёт «{action_type}» был отклонён модератором."
+            requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery", json={"callback_query_id": callback_id})
+            old_caption = callback["message"].get("caption", "")
+            requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageCaption", json={
+                "chat_id": chat_id,
+                "message_id": message_id,
+                "caption": f"{old_caption}\n\n<b>Статус:</b> {status_text}",
+                "parse_mode": "HTML"
+            })
+            requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={
+                "chat_id": user_id,
+                "text": user_msg
+            })
 
     conn.close()
 
-    # 1. Ответ на нажатие кнопки
-    requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery", json={"callback_query_id": callback_id})
-
-    # 2. Обновляем текст сообщения у админа (убираем кнопки)
-    old_caption = callback["message"].get("caption", "")
-    new_caption = f"{old_caption}\n\n<b>Статус:</b> {status_text}"
-    requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageCaption", json={
-        "chat_id": chat_id,
-        "message_id": message_id,
-        "caption": new_caption,
-        "parse_mode": "HTML"
-    })
-
-    # 3. Отправляем уведомление пользователю
-    requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={
-        "chat_id": user_id,
-        "text": user_msg
-    })
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Запуск фонового процесса при старте FastAPI
     polling_task = asyncio.create_task(process_telegram_updates())
     yield
     polling_task.cancel()
@@ -178,101 +212,114 @@ app.add_middleware(
 )
 
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# --- 3. Вспомогательная функция отправки фото админу с кнопками ---
-def send_admin_approval_request(report_id: int, photo_path: str, caption_text: str):
-    if BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
-        return
-
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
-    keyboard = {
-        "inline_keyboard": [
-            [
-                {"text": "✅ Принять", "callback_data": f"approve_{report_id}"},
-                {"text": "❌ Отклонить", "callback_data": f"reject_{report_id}"}
-            ]
-        ]
-    }
-    
-    try:
-        with open(photo_path, "rb") as photo_file:
-            payload = {
-                "chat_id": ADMIN_ID,
-                "caption": caption_text,
-                "parse_mode": "HTML",
-                "reply_markup": str(keyboard).replace("'", '"')
-            }
-            files = {"photo": photo_file}
-            requests.post(url, data=payload, files=files, timeout=10)
-    except Exception as e:
-        print(f"Ошибка отправки сообщения админу: {e}")
-
-# --- 4. Эндпоинты API ---
-
-@app.get("/")
-def read_root():
-    return {"status": "ok", "message": "Eco Khujand Server is running"}
+# --- Endpoints ---
 
 @app.get("/api/user/{user_id}")
 def get_user_profile(user_id: int):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("SELECT points FROM users WHERE user_id = ?", (user_id,))
+    
+    cursor.execute("SELECT points, username, avatar_url FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
     
     if not row:
         cursor.execute("INSERT INTO users (user_id, points) VALUES (?, 0)", (user_id,))
         conn.commit()
-        points = 0
+        points, username, avatar_url = 0, "", ""
     else:
-        points = row[0]
-        
-    conn.close()
-    return {"user_id": user_id, "points": points}
+        points, username, avatar_url = row
 
-@app.post("/api/report")
-async def receive_report(
+    cursor.execute("SELECT COUNT(*) FROM reports WHERE user_id = ? AND status = 'approved'", (user_id,))
+    approved_reports = cursor.fetchone()[0]
+
+    cursor.execute("SELECT medal_key, status FROM medals WHERE user_id = ?", (user_id,))
+    user_medals = {m[0]: m[1] for m in cursor.fetchall()}
+
+    conn.close()
+
+    rank_info = calculate_rank(points)
+
+    return {
+        "user_id": user_id,
+        "username": username or "Пользователь",
+        "avatar_url": avatar_url or "/static/default_avatar.png",
+        "points": points,
+        "reports_count": approved_reports,
+        "rank": rank_info,
+        "medals": {
+            "plastic": user_medals.get("plastic", "locked"),
+            "tree": user_medals.get("tree", "locked")
+        }
+    }
+
+@app.post("/api/report/medal")
+async def receive_medal_report(
     user_id: int = Form(...),
-    action_type: str = Form(...),
-    points: int = Form(...),
-    comment: Optional[str] = Form(""),
-    latitude: Optional[float] = Form(None),
-    longitude: Optional[float] = Form(None),
-    photo: UploadFile = File(...)
+    medal_key: str = Form(...),
+    photo_before: UploadFile = File(...),
+    photo_after: UploadFile = File(...)
 ):
     try:
-        photo_filename = f"{user_id}_{photo.filename}"
-        photo_path = os.path.join(UPLOAD_DIR, photo_filename)
-        
-        with open(photo_path, "wb") as buffer:
-            content = await photo.read()
-            buffer.write(content)
+        path_before = os.path.join(UPLOAD_DIR, f"medal_{user_id}_{medal_key}_before_{photo_before.filename}")
+        path_after = os.path.join(UPLOAD_DIR, f"medal_{user_id}_{medal_key}_after_{photo_after.filename}")
 
-        # Записываем отчёт со статусом 'pending' (баллы пока НЕ начисляем)
+        with open(path_before, "wb") as f:
+            f.write(await photo_before.read())
+        with open(path_after, "wb") as f:
+            f.write(await photo_after.read())
+
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         
         cursor.execute("""
-            INSERT INTO reports (user_id, action_type, points, comment, latitude, longitude, photo_path, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
-        """, (user_id, action_type, points, comment, latitude, longitude, photo_path))
+            INSERT INTO medals (user_id, medal_key, photo_before, photo_after, status)
+            VALUES (?, ?, ?, ?, 'pending')
+            ON CONFLICT(user_id, medal_key) DO UPDATE SET
+                photo_before = excluded.photo_before,
+                photo_after = excluded.photo_after,
+                status = 'pending'
+        """, (user_id, medal_key, path_before, path_after))
 
-        report_id = cursor.lastrowid
+        medal_db_id = cursor.lastrowid
         conn.commit()
         conn.close()
 
-        # Отправляем карточку отчёта с кнопками администратору
-        loc_str = f"{latitude}, {longitude}" if latitude and longitude else "Не указаны"
-        caption = (
-            f"📥 <b>Новый отчёт на модерацию! (№{report_id})</b>\n\n"
-            f"👤 <b>ID пользователя:</b> <code>{user_id}</code>\n"
-            f"🎯 <b>Действие:</b> {action_type} (+{points} баллов)\n"
-            f"💬 <b>Комментарий:</b> {comment or 'Отсутствует'}\n"
-            f"📍 <b>Координаты:</b> {loc_str}"
-        )
-        send_admin_approval_request(report_id, photo_path, caption)
+        # Отправляем админу сообщение с кнопками модерации медали
+        if BOT_TOKEN != "YOUR_BOT_TOKEN_HERE":
+            medal_names = {"plastic": "Сбор пластика", "tree": "Посадка дерева"}
+            title = medal_names.get(medal_key, medal_key)
+            
+            # 1. Отправка 2 фото альбомом
+            url_media = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMediaGroup"
+            files = {
+                "p1": open(path_before, "rb"),
+                "p2": open(path_after, "rb")
+            }
+            media_data = [
+                {"type": "photo", "media": "attach://p1", "caption": f"🏅 <b>Заявка на медаль: {title}</b>\nUser ID: {user_id}\n\nСлева: ДО | Справа: ПОСЛЕ", "parse_mode": "HTML"},
+                {"type": "photo", "media": "attach://p2"}
+            ]
+            requests.post(url_media, data={"chat_id": ADMIN_ID, "media": str(media_data).replace("'", '"')}, files=files)
 
-        return {"status": "success", "message": "Отчёт отправлен на модерацию!", "report_id": report_id}
+            # 2. Отправка кнопок модерации
+            url_btn = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+            keyboard = {
+                "inline_keyboard": [
+                    [
+                        {"text": "✅ Подтвердить медаль", "callback_data": f"approve_medal_{medal_db_id}"},
+                        {"text": "❌ Отклонить", "callback_data": f"reject_medal_{medal_db_id}"}
+                    ]
+                ]
+            }
+            requests.post(url_btn, json={
+                "chat_id": ADMIN_ID,
+                "text": f"Принять решение по медали «{title}» для пользователя {user_id}:",
+                "reply_markup": keyboard
+            })
+
+        return {"status": "success", "message": "Заявка на медаль отправлена!"}
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
