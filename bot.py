@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 from aiohttp import web
+import aiohttp_cors
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
@@ -11,6 +12,10 @@ BOT_TOKEN = "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
+# Данные для хранения пользователей и отчётов (в памяти сервера)
+USERS_DB = {}
+REPORTS_DB = []
+
 WEBAPP_MAP_URL = "https://khujand-eco-bot.onrender.com/index.html?v=1.2"
 WEBAPP_PROFILE_URL = "https://khujand-eco-bot.onrender.com/profile.html?v=1.3"
 
@@ -19,7 +24,7 @@ def get_main_reply_keyboard():
         keyboard=[
             [KeyboardButton(text="Открыть карту 🗺️", web_app=WebAppInfo(url=WEBAPP_MAP_URL))],
             [KeyboardButton(text="Сообщить о проблеме ⚠️")],
-            [KeyboardButton(text="Профиль 👤", web_app=WebAppInfo(url=WEBAPP_PROFILE_URL))]
+            [KeyboardButton(text="Профиль 👤", web_app=WebAppInfo(url=WebAppInfo(url=WEBAPP_PROFILE_URL).url))]
         ],
         resize_keyboard=True
     )
@@ -38,13 +43,66 @@ async def cmd_start(message: types.Message):
 async def handle_report(message: types.Message):
     await message.answer("Пришлите фото переполненного бака или геолокацию, чтобы мы передали информацию службы очистки!")
 
+# --- API ENDPOINTS ДЛЯ WEBAPP ---
+
 async def handle_ping(request):
     return web.Response(text="Bot is running!")
 
+async def handle_get_user(request):
+    user_id = str(request.match_info.get("user_id", ""))
+    user_data = USERS_DB.get(user_id, {"points": 0, "reports_count": 0})
+    return web.json_response(user_data)
+
+async def handle_create_report(request):
+    try:
+        data = await request.post()
+        user_id = str(data.get("user_id", "123456"))
+        action_type = data.get("action_type", "Эко-активность")
+        points = int(data.get("points", 0))
+        comment = data.get("comment", "")
+        
+        if user_id not in USERS_DB:
+            USERS_DB[user_id] = {"points": 0, "reports_count": 0}
+
+        USERS_DB[user_id]["points"] += points
+        USERS_DB[user_id]["reports_count"] += 1
+
+        REPORTS_DB.append({
+            "user_id": user_id,
+            "action_type": action_type,
+            "points": points,
+            "comment": comment
+        })
+
+        return web.json_response({"status": "success", "current_points": USERS_DB[user_id]["points"]})
+    except Exception as e:
+        return web.json_response({"status": "error", "message": str(e)}, status=500)
+
+# --- ЗАПУСК ВЕБ-СЕРВЕРА С CORS ---
+
 async def start_web_server():
     app = web.Application()
+    
+    # Добавляем маршруты
     app.router.add_get("/ping", handle_ping)
-    # Раздача HTML/CSS/JS файлов из папки проекта
+    app.router.add_get("/api/user/{user_id}", handle_get_user)
+    app.router.add_post("/api/report", handle_create_report)
+    
+    # Настройка CORS для защиты от "Load failed"
+    cors = aiohttp_cors.setup(app, defaults={
+        "*": aiohttp_cors.ResourceOptions(
+            allow_credentials=True,
+            expose_headers="*",
+            allow_headers="*",
+            allow_methods=["GET", "POST", "OPTIONS"]
+        )
+    })
+
+    # Применяем CORS ко всем API роутам
+    for route in list(app.router.routes()):
+        cors.add(route)
+
+    # Раздача статики (HTML/JS/CSS)
     app.router.add_static("/", path=".", show_index=True)
     
     runner = web.AppRunner(app)
@@ -60,4 +118,4 @@ async def main():
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main())   
