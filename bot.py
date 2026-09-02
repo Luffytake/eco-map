@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 from aiohttp import web
-import aiohttp_cors
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
@@ -24,7 +23,7 @@ def get_main_reply_keyboard():
         keyboard=[
             [KeyboardButton(text="Открыть карту 🗺️", web_app=WebAppInfo(url=WEBAPP_MAP_URL))],
             [KeyboardButton(text="Сообщить о проблеме ⚠️")],
-            [KeyboardButton(text="Профиль 👤", web_app=WebAppInfo(url=WebAppInfo(url=WEBAPP_PROFILE_URL).url))]
+            [KeyboardButton(text="Профиль 👤", web_app=WebAppInfo(url=WEBAPP_PROFILE_URL))]
         ],
         resize_keyboard=True
     )
@@ -78,31 +77,34 @@ async def handle_create_report(request):
     except Exception as e:
         return web.json_response({"status": "error", "message": str(e)}, status=500)
 
-# --- ЗАПУСК ВЕБ-СЕРВЕРА С CORS ---
+# --- MIDDLEWARE ДЛЯ CORS (Разрешает запросы от WebApp) ---
+
+@web.middleware
+async def cors_middleware(request, handler):
+    if request.method == "OPTIONS":
+        response = web.Response(status=200)
+    else:
+        try:
+            response = await handler(request)
+        except web.HTTPException as ex:
+            response = ex
+
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, PUT, DELETE"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
+
+# --- ЗАПУСК ВЕБ-СЕРВЕРА ---
 
 async def start_web_server():
-    app = web.Application()
+    app = web.Application(middlewares=[cors_middleware])
     
-    # Добавляем маршруты
+    # Добавляем маршруты API
     app.router.add_get("/ping", handle_ping)
     app.router.add_get("/api/user/{user_id}", handle_get_user)
     app.router.add_post("/api/report", handle_create_report)
     
-    # Настройка CORS для защиты от "Load failed"
-    cors = aiohttp_cors.setup(app, defaults={
-        "*": aiohttp_cors.ResourceOptions(
-            allow_credentials=True,
-            expose_headers="*",
-            allow_headers="*",
-            allow_methods=["GET", "POST", "OPTIONS"]
-        )
-    })
-
-    # Применяем CORS ко всем API роутам
-    for route in list(app.router.routes()):
-        cors.add(route)
-
-    # Раздача статики (HTML/JS/CSS)
+    # Раздача статических файлов (HTML, JS, CSS)
     app.router.add_static("/", path=".", show_index=True)
     
     runner = web.AppRunner(app)
@@ -118,4 +120,4 @@ async def main():
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(main())   
+    asyncio.run(main())
