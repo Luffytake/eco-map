@@ -3,3 +3,5 @@ uvicorn
 aiogram
 python-multipart
 requests
+aiohttp
+aiohttp-cors
