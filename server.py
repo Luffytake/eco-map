@@ -267,32 +267,74 @@ async def on_startup():
 def read_root():
   return {"status": "ok", "message": "Eco Khujand API & Bot running"}
 
-
 @app.get("/api/user/{user_id}")
 def get_user(user_id: int):
-  conn = sqlite3.connect(DB_NAME)
-  cursor = conn.cursor()
+  try:
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
 
-  # 1. Данные из таблицы users
-  cursor.execute(
-      "SELECT points, username, avatar_url FROM users WHERE user_id = ?",
-      (user_id,),
-  )
-  user_row = cursor.fetchone()
+    # 1. Получаем данные из таблицы users
+    cursor.execute(
+        "SELECT points, username, avatar_url FROM users WHERE user_id = ?",
+        (user_id,),
+    )
+    user_row = cursor.fetchone()
 
-  # 2. Количество и сумма баллов по одобренным отчётам
-  cursor.execute(
-      "SELECT COUNT(*) FROM reports WHERE user_id = ? AND status = 'approved'",
-      (user_id,),
-  )
-  reports_count = cursor.fetchone()[0]
+    # 2. Подсчитываем количество одобренных отчётов
+    cursor.execute(
+        "SELECT COUNT(*) FROM reports WHERE user_id = ? AND status = 'approved'",
+        (user_id,),
+    )
+    reports_count_row = cursor.fetchone()
+    reports_count = reports_count_row[0] if reports_count_row else 0
 
-  cursor.execute(
-      "SELECT SUM(points) FROM reports WHERE user_id = ? AND status ="
-      " 'approved'",
-      (user_id,),
-  )
-  approved_points_sum = cursor.fetchone()[0] or 0
+    # 3. Суммируем баллы за одобренные отчёты
+    cursor.execute(
+        "SELECT SUM(points) FROM reports WHERE user_id = ? AND status ="
+        " 'approved'",
+        (user_id,),
+    )
+    sum_row = cursor.fetchone()
+    approved_points_sum = sum_row[0] if (sum_row and sum_row[0] is not None) else 0
+
+    # 4. Получаем одобренные медали
+    cursor.execute(
+        "SELECT medal_key FROM medals WHERE user_id = ? AND status = 'approved'",
+        (user_id,),
+    )
+    medals = [row[0] for row in cursor.fetchall()]
+
+    conn.close()
+
+    user_db_points = user_row[0] if (user_row and user_row[0] is not None) else 0
+    username = user_row[1] if (user_row and user_row[1]) else "Пользователь"
+    avatar_url = user_row[2] if (user_row and user_row[2]) else ""
+
+    # Берем максимальные баллы
+    final_points = max(user_db_points, approved_points_sum)
+
+    return {
+        "user_id": user_id,
+        "points": final_points,
+        "username": username,
+        "avatar_url": avatar_url,
+        "reports_count": reports_count,
+        "medals": medals,
+    }
+  except Exception as e:
+    print(f"Ошибка в get_user для user_id {user_id}: {e}")
+    # Возвращаем безопасный дефолтный ответ вместо краша сервера
+    return {
+        "user_id": user_id,
+        "points": 0,
+        "username": "Пользователь",
+        "avatar_url": "",
+        "reports_count": 0,
+        "medals": [],
+        "error": str(e),
+    }
+  sum_row = cursor.fetchone()
+    approved_points_sum = sum_row[0] if (sum_row and sum_row[0] is not None) else 0
 
   # 3. Одобренные медали
   cursor.execute(
