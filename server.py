@@ -53,13 +53,14 @@ def get_main_reply_keyboard():
 async def cmd_start(message: types.Message):
   welcome_text = (
       f"👋 <b>Привет, {message.from_user.first_name}! Добро пожаловать в Eco"
-      " Khujand!</b> 🌿\n\nМы создаём чистое будущее Худжанда вместе! Вот что ты"
-      " можешь делать с помощью этого бота:\n\n🗺️ <b>Карта эко-точек:</b> находи"
-      " близлежащие контейнеры и урны.\n📸 <b>Эко-отчёты:</b> убирай территорию"
-      " или сдавай пластик/стекло, отправляй фото и получай баллы!\n🏆 <b>Ранги"
-      " и достижения:</b> зарабатывай очки и расти от <i>Новичка</i> до"
-      " <i>Эко-Героя</i>!\n⚠️ <b>Проблемы:</b> сообщай о переполненных баках"
-      " прямо из бота.\n\nИспользуй меню ниже, чтобы начать! 👇"
+      " Khujand!</b> 🌿\n\nМы создаём чистое будущее Худжанда вместе! Вот"
+      " что ты можешь делать с помощью этого бота:\n\n🗺️ <b>Карта"
+      " эко-точек:</b> находи близлежащие контейнеры и урны.\n📸 <b>Эко-отчёты:</b>"
+      " убирай территорию или сдавай пластик/стекло, отправляй фото и получай"
+      " баллы!\n🏆 <b>Ранги и достижения:</b> зарабатывай очки и расти от"
+      " <i>Новичка</i> до <i>Эко-Героя</i>!\n⚠️ <b>Проблемы:</b> сообщай о"
+      " переполненных баках прямо из бота.\n\nИспользуй меню ниже, чтобы"
+      " начать! 👇"
   )
   await message.answer(
       welcome_text, parse_mode="HTML", reply_markup=get_main_reply_keyboard()
@@ -120,9 +121,9 @@ async def handle_report_moderation(callback: types.CallbackQuery):
     )
     cursor.execute(
         """
-            INSERT INTO users (user_id, points) VALUES (?, ?)
-            ON CONFLICT(user_id) DO UPDATE SET points = points + ?
-        """,
+                INSERT INTO users (user_id, points) VALUES (?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET points = points + ?
+            """,
         (user_id, points, points),
     )
     conn.commit()
@@ -141,9 +142,9 @@ async def handle_report_moderation(callback: types.CallbackQuery):
       await bot.send_message(
           chat_id=user_id,
           text=(
-              f"🎉 <b>Ваш эко-отчёт #{report_id} одобрен!</b>\nВам зачислено"
-              f" <b>+{points} баллов</b>. Посмотреть свой статус можно в"
-              " Профиле! 🏆"
+              f"🎉 <b>Ваш эко-отчёт #{report_id} одобрен!</b>\nВам"
+              f" зачислено <b>+{points} баллов</b>. Посмотреть свой"
+              " статус можно в Профиле! 🏆"
           ),
           parse_mode="HTML",
       )
@@ -267,20 +268,19 @@ async def on_startup():
 def read_root():
   return {"status": "ok", "message": "Eco Khujand API & Bot running"}
 
+
 @app.get("/api/user/{user_id}")
 def get_user(user_id: int):
   try:
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
-    # 1. Получаем данные из таблицы users
     cursor.execute(
         "SELECT points, username, avatar_url FROM users WHERE user_id = ?",
         (user_id,),
     )
     user_row = cursor.fetchone()
 
-    # 2. Подсчитываем количество одобренных отчётов
     cursor.execute(
         "SELECT COUNT(*) FROM reports WHERE user_id = ? AND status = 'approved'",
         (user_id,),
@@ -288,7 +288,6 @@ def get_user(user_id: int):
     reports_count_row = cursor.fetchone()
     reports_count = reports_count_row[0] if reports_count_row else 0
 
-    # 3. Суммируем баллы за одобренные отчёты
     cursor.execute(
         "SELECT SUM(points) FROM reports WHERE user_id = ? AND status ="
         " 'approved'",
@@ -297,7 +296,6 @@ def get_user(user_id: int):
     sum_row = cursor.fetchone()
     approved_points_sum = sum_row[0] if (sum_row and sum_row[0] is not None) else 0
 
-    # 4. Получаем одобренные медали
     cursor.execute(
         "SELECT medal_key FROM medals WHERE user_id = ? AND status = 'approved'",
         (user_id,),
@@ -310,7 +308,6 @@ def get_user(user_id: int):
     username = user_row[1] if (user_row and user_row[1]) else "Пользователь"
     avatar_url = user_row[2] if (user_row and user_row[2]) else ""
 
-    # Берем максимальные баллы
     final_points = max(user_db_points, approved_points_sum)
 
     return {
@@ -323,7 +320,6 @@ def get_user(user_id: int):
     }
   except Exception as e:
     print(f"Ошибка в get_user для user_id {user_id}: {e}")
-    # Возвращаем безопасный дефолтный ответ вместо краша сервера
     return {
         "user_id": user_id,
         "points": 0,
@@ -333,31 +329,6 @@ def get_user(user_id: int):
         "medals": [],
         "error": str(e),
     }
-  sum_row = cursor.fetchone()
-    approved_points_sum = sum_row[0] if (sum_row and sum_row[0] is not None) else 0
-
-  # 3. Одобренные медали
-  cursor.execute(
-      "SELECT medal_key FROM medals WHERE user_id = ? AND status = 'approved'",
-      (user_id,),
-  )
-  medals = [row[0] for row in cursor.fetchall()]
-
-  conn.close()
-
-  # Выбираем максимальное актуальное количество баллов
-  user_points = max(user_row[0] if user_row else 0, approved_points_sum)
-  username = user_row[1] if (user_row and user_row[1]) else "Пользователь"
-  avatar_url = user_row[2] if (user_row and user_row[2]) else ""
-
-  return {
-      "user_id": user_id,
-      "points": user_points,
-      "username": username,
-      "avatar_url": avatar_url,
-      "reports_count": reports_count,
-      "medals": medals,
-  }
 
 
 @app.post("/api/report")
@@ -378,9 +349,9 @@ async def create_report(
 
     cursor.execute(
         """
-            INSERT INTO reports (user_id, action_type, comment, latitude, longitude, photo_path, points, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
-        """,
+                INSERT INTO reports (user_id, action_type, comment, latitude, longitude, photo_path, points, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
+            """,
         (
             user_id,
             action_type,
@@ -436,4 +407,12 @@ async def create_report(
   except Exception as e:
     raise HTTPException(
         status_code=500, detail=f"Ошибка обработки отчёта: {str(e)}"
-    )   
+    )
+
+
+# --- ТОЧКА ВХОДА ДЛЯ ЗАПУСКА НА RENDER ---
+if __name__ == "__main__":
+  import uvicorn
+
+  port = int(os.environ.get("PORT", 10000))
+  uvicorn.run("server:app", host="0.0.0.0", port=port, reload=False)
