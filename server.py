@@ -254,7 +254,6 @@ app.add_middleware(
 )
 
 
-# Запуск бота при старте сервера FastAPI
 @app.on_event("startup")
 async def on_startup():
   await bot.delete_webhook(drop_pending_updates=True)
@@ -274,18 +273,28 @@ def get_user(user_id: int):
   conn = sqlite3.connect(DB_NAME)
   cursor = conn.cursor()
 
+  # 1. Данные из таблицы users
   cursor.execute(
       "SELECT points, username, avatar_url FROM users WHERE user_id = ?",
       (user_id,),
   )
   user_row = cursor.fetchone()
 
+  # 2. Количество и сумма баллов по одобренным отчётам
   cursor.execute(
       "SELECT COUNT(*) FROM reports WHERE user_id = ? AND status = 'approved'",
       (user_id,),
   )
   reports_count = cursor.fetchone()[0]
 
+  cursor.execute(
+      "SELECT SUM(points) FROM reports WHERE user_id = ? AND status ="
+      " 'approved'",
+      (user_id,),
+  )
+  approved_points_sum = cursor.fetchone()[0] or 0
+
+  # 3. Одобренные медали
   cursor.execute(
       "SELECT medal_key FROM medals WHERE user_id = ? AND status = 'approved'",
       (user_id,),
@@ -294,21 +303,16 @@ def get_user(user_id: int):
 
   conn.close()
 
-  if not user_row:
-    return {
-        "user_id": user_id,
-        "points": 0,
-        "username": "Пользователь",
-        "avatar_url": "",
-        "reports_count": 0,
-        "medals": [],
-    }
+  # Выбираем максимальное актуальное количество баллов
+  user_points = max(user_row[0] if user_row else 0, approved_points_sum)
+  username = user_row[1] if (user_row and user_row[1]) else "Пользователь"
+  avatar_url = user_row[2] if (user_row and user_row[2]) else ""
 
   return {
       "user_id": user_id,
-      "points": user_row[0],
-      "username": user_row[1] or "Пользователь",
-      "avatar_url": user_row[2] or "",
+      "points": user_points,
+      "username": username,
+      "avatar_url": avatar_url,
       "reports_count": reports_count,
       "medals": medals,
   }
@@ -390,4 +394,4 @@ async def create_report(
   except Exception as e:
     raise HTTPException(
         status_code=500, detail=f"Ошибка обработки отчёта: {str(e)}"
-    )  
+    )   
