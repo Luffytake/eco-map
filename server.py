@@ -7,7 +7,7 @@ from typing import Optional
 import aiohttp
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart
-from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
+from aiogram.types import ReplyKeyboardRemove
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -17,33 +17,9 @@ BOT_TOKEN = os.getenv(
 )
 ADMIN_ID = os.getenv("ADMIN_ID", "5581941983")
 
-WEBAPP_MAP_URL = "https://khujand-eco-bot.onrender.com/index.html?v=1.2"
-WEBAPP_PROFILE_URL = "https://khujand-eco-bot.onrender.com/profile.html?v=1.3"
-
 # --- Инициализация Bot и Dispatcher ---
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
-
-
-def get_main_reply_keyboard():
-  return ReplyKeyboardMarkup(
-      keyboard=[
-          [
-              KeyboardButton(
-                  text="Открыть карту 🗺️",
-                  web_app=WebAppInfo(url=WEBAPP_MAP_URL),
-              )
-          ],
-          [KeyboardButton(text="Сообщить о проблеме ⚠️")],
-          [
-              KeyboardButton(
-                  text="Профиль 👤",
-                  web_app=WebAppInfo(url=WEBAPP_PROFILE_URL),
-              )
-          ],
-      ],
-      resize_keyboard=True,
-  )
 
 
 # --- ХЕНДЛЕРЫ ТЕЛЕГРАМ БОТА ---
@@ -53,25 +29,12 @@ def get_main_reply_keyboard():
 async def cmd_start(message: types.Message):
   welcome_text = (
       f"👋 <b>Привет, {message.from_user.first_name}! Добро пожаловать в Eco"
-      " Khujand!</b> 🌿\n\nМы создаём чистое будущее Худжанда вместе! Вот"
-      " что ты можешь делать с помощью этого бота:\n\n🗺️ <b>Карта"
-      " эко-точек:</b> находи близлежащие контейнеры и урны.\n📸 <b>Эко-отчёты:</b>"
-      " убирай территорию или сдавай пластик/стекло, отправляй фото и получай"
-      " баллы!\n🏆 <b>Ранги и достижения:</b> зарабатывай очки и расти от"
-      " <i>Новичка</i> до <i>Эко-Героя</i>!\n⚠️ <b>Проблемы:</b> сообщай о"
-      " переполненных баках прямо из бота.\n\nИспользуй меню ниже, чтобы"
-      " начать! 👇"
+      " Khujand!</b> 🌿\n\nМы создаём чистое будущее Худжанда вместе! Нажми на"
+      " кнопку <b>Eco App</b> внизу слева, чтобы открыть карту и профиль."
   )
+  # Удаляем старые Reply-кнопки снизу
   await message.answer(
-      welcome_text, parse_mode="HTML", reply_markup=get_main_reply_keyboard()
-  )
-
-
-@dp.message(F.text == "Сообщить о проблеме ⚠️")
-async def handle_report_problem(message: types.Message):
-  await message.answer(
-      "Пришлите фото переполненного бака или геолокацию, чтобы мы передали"
-      " информацию в службы очистки!"
+      welcome_text, parse_mode="HTML", reply_markup=ReplyKeyboardRemove()
   )
 
 
@@ -208,36 +171,6 @@ def init_db():
         )
     """)
 
-  cursor.execute("PRAGMA table_info(reports)")
-  existing_columns = [column[1] for column in cursor.fetchall()]
-
-  required_columns = {
-      "points": "INTEGER DEFAULT 0",
-      "comment": "TEXT DEFAULT ''",
-      "latitude": "REAL DEFAULT 0.0",
-      "longitude": "REAL DEFAULT 0.0",
-      "photo_path": "TEXT DEFAULT ''",
-      "action_type": "TEXT DEFAULT ''",
-      "status": "TEXT DEFAULT 'pending'",
-  }
-
-  for col_name, col_type in required_columns.items():
-    if col_name not in existing_columns:
-      cursor.execute(f"ALTER TABLE reports ADD COLUMN {col_name} {col_type}")
-
-  cursor.execute("""
-        CREATE TABLE IF NOT EXISTS medals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            medal_key TEXT,
-            photo_before TEXT,
-            photo_after TEXT,
-            status TEXT DEFAULT 'pending',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, medal_key)
-        )
-    """)
-
   conn.commit()
   conn.close()
 
@@ -296,12 +229,6 @@ def get_user(user_id: int):
     sum_row = cursor.fetchone()
     approved_points_sum = sum_row[0] if (sum_row and sum_row[0] is not None) else 0
 
-    cursor.execute(
-        "SELECT medal_key FROM medals WHERE user_id = ? AND status = 'approved'",
-        (user_id,),
-    )
-    medals = [row[0] for row in cursor.fetchall()]
-
     conn.close()
 
     user_db_points = user_row[0] if (user_row and user_row[0] is not None) else 0
@@ -316,17 +243,14 @@ def get_user(user_id: int):
         "username": username,
         "avatar_url": avatar_url,
         "reports_count": reports_count,
-        "medals": medals,
     }
   except Exception as e:
-    print(f"Ошибка в get_user для user_id {user_id}: {e}")
     return {
         "user_id": user_id,
         "points": 0,
         "username": "Пользователь",
         "avatar_url": "",
         "reports_count": 0,
-        "medals": [],
         "error": str(e),
     }
 
@@ -336,7 +260,7 @@ async def create_report(
     user_id: int = Form(...),
     action_type: str = Form(...),
     comment: Optional[str] = Form(""),
-    points: int = Form(0),
+    points: int = Form(20),
     latitude: Optional[float] = Form(None),
     longitude: Optional[float] = Form(None),
     photo: UploadFile = File(...),
@@ -373,8 +297,6 @@ async def create_report(
         f" <b>Баллы:</b> +{points}\n💬 <b>Комментарий:</b>"
         f" {comment if comment else 'Отсутствует'}\n"
     )
-    if latitude and longitude:
-      caption += f"📍 <b>Координаты:</b> {latitude:.5f}, {longitude:.5f}\n"
 
     reply_markup = {
         "inline_keyboard": [[
@@ -410,7 +332,7 @@ async def create_report(
     )
 
 
-# --- ТОЧКА ВХОДА ДЛЯ ЗАПУСКА НА RENDER ---
+# --- ЗАПУСК ---
 if __name__ == "__main__":
   import uvicorn
 
