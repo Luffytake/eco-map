@@ -1,34 +1,189 @@
+import asyncio
+import json
 import os
 import sqlite3
-import aiohttp
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
-from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
-import json
+
+import aiohttp
+from aiogram import Bot, Dispatcher, F, types
+from aiogram.filters import CommandStart
+from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 
 DB_NAME = "eco_khujand.db"
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0")
+BOT_TOKEN = os.getenv(
+    "BOT_TOKEN", "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"
+)
 ADMIN_ID = os.getenv("ADMIN_ID", "5581941983")
 
-app = FastAPI(title="Eco Khujand API")
+WEBAPP_MAP_URL = "https://khujand-eco-bot.onrender.com/index.html?v=1.2"
+WEBAPP_PROFILE_URL = "https://khujand-eco-bot.onrender.com/profile.html?v=1.3"
 
-# --- Настройка CORS для работы с Telegram WebApp ---
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+# --- Инициализация Bot и Dispatcher ---
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
+
+
+def get_main_reply_keyboard():
+  return ReplyKeyboardMarkup(
+      keyboard=[
+          [
+              KeyboardButton(
+                  text="Открыть карту 🗺️",
+                  web_app=WebAppInfo(url=WEBAPP_MAP_URL),
+              )
+          ],
+          [KeyboardButton(text="Сообщить о проблеме ⚠️")],
+          [
+              KeyboardButton(
+                  text="Профиль 👤",
+                  web_app=WebAppInfo(url=WEBAPP_PROFILE_URL),
+              )
+          ],
+      ],
+      resize_keyboard=True,
+  )
+
+
+# --- ХЕНДЛЕРЫ ТЕЛЕГРАМ БОТА ---
+
+
+@dp.message(CommandStart())
+async def cmd_start(message: types.Message):
+  welcome_text = (
+      f"👋 <b>Привет, {message.from_user.first_name}! Добро пожаловать в Eco"
+      " Khujand!</b> 🌿\n\nМы создаём чистое будущее Худжанда вместе! Вот что ты"
+      " можешь делать с помощью этого бота:\n\n🗺️ <b>Карта эко-точек:</b> находи"
+      " близлежащие контейнеры и урны.\n📸 <b>Эко-отчёты:</b> убирай территорию"
+      " или сдавай пластик/стекло, отправляй фото и получай баллы!\n🏆 <b>Ранги"
+      " и достижения:</b> зарабатывай очки и расти от <i>Новичка</i> до"
+      " <i>Эко-Героя</i>!\n⚠️ <b>Проблемы:</b> сообщай о переполненных баках"
+      " прямо из бота.\n\nИспользуй меню ниже, чтобы начать! 👇"
+  )
+  await message.answer(
+      welcome_text, parse_mode="HTML", reply_markup=get_main_reply_keyboard()
+  )
+
+
+@dp.message(F.text == "Сообщить о проблеме ⚠️")
+async def handle_report_problem(message: types.Message):
+  await message.answer(
+      "Пришлите фото переполненного бака или геолокацию, чтобы мы передали"
+      " информацию в службы очистки!"
+  )
+
+
+@dp.callback_query(
+    F.data.startswith("approve_")
+    | F.data.startswith("reject_")
+    | F.data.startswith("approve_report:")
+    | F.data.startswith("reject_report:")
 )
+async def handle_report_moderation(callback: types.CallbackQuery):
+  data = callback.data
+
+  if ":" in data:
+    action, report_id = data.split(":")
+  else:
+    parts = data.split("_")
+    action = parts[0]
+    report_id = parts[1]
+
+  report_id = int(report_id)
+
+  conn = sqlite3.connect(DB_NAME)
+  cursor = conn.cursor()
+
+  cursor.execute(
+      "SELECT user_id, points, status FROM reports WHERE id = ?", (report_id,)
+  )
+  report = cursor.fetchone()
+
+  if not report:
+    await callback.answer("❌ Отчёт не найден в базе данных!", show_alert=True)
+    conn.close()
+    return
+
+  user_id, points, status = report
+
+  if status != "pending":
+    await callback.answer(
+        f"⚠️ Этот отчёт уже обработан (статус: {status})", show_alert=True
+    )
+    conn.close()
+    return
+
+  if action in ["approve", "approve_report"]:
+    cursor.execute(
+        "UPDATE reports SET status = 'approved' WHERE id = ?", (report_id,)
+    )
+    cursor.execute(
+        """
+            INSERT INTO users (user_id, points) VALUES (?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET points = points + ?
+        """,
+        (user_id, points, points),
+    )
+    conn.commit()
+    conn.close()
+
+    new_caption = (
+        callback.message.caption
+        + f"\n\n<b>✅ ОДОБРЕНО! Зачислено +{points} баллов.</b>"
+    )
+    await callback.message.edit_caption(
+        caption=new_caption, parse_mode="HTML", reply_markup=None
+    )
+    await callback.answer("✅ Отчёт одобрен, баллы зачислены!")
+
+    try:
+      await bot.send_message(
+          chat_id=user_id,
+          text=(
+              f"🎉 <b>Ваш эко-отчёт #{report_id} одобрен!</b>\nВам зачислено"
+              f" <b>+{points} баллов</b>. Посмотреть свой статус можно в"
+              " Профиле! 🏆"
+          ),
+          parse_mode="HTML",
+      )
+    except Exception as e:
+      print(f"Ошибка отправки пользователю: {e}")
+
+  elif action in ["reject", "reject_report"]:
+    cursor.execute(
+        "UPDATE reports SET status = 'rejected' WHERE id = ?", (report_id,)
+    )
+    conn.commit()
+    conn.close()
+
+    new_caption = callback.message.caption + "\n\n<b>❌ ОТКЛОНЕНО.</b>"
+    await callback.message.edit_caption(
+        caption=new_caption, parse_mode="HTML", reply_markup=None
+    )
+    await callback.answer("❌ Отчёт отклонён.")
+
+    try:
+      await bot.send_message(
+          chat_id=user_id,
+          text=(
+              f"❌ <b>Ваш эко-отчёт #{report_id} был отклонён"
+              " модератором.</b>\nПопробуйте отправить более чёткое фото."
+          ),
+          parse_mode="HTML",
+      )
+    except Exception as e:
+      print(f"Ошибка отправки пользователю: {e}")
 
 
-# --- Инициализация и ПОЛНАЯ автомиграция БД ---
+# --- ИНИЦИАЛИЗА БД И FASTAPI ---
+
+
 def init_db():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
+  conn = sqlite3.connect(DB_NAME)
+  cursor = conn.cursor()
 
-    # Таблица пользователей
-    cursor.execute("""
+  cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
             username TEXT DEFAULT '',
@@ -37,8 +192,7 @@ def init_db():
         )
     """)
 
-    # Базовая таблица отчётов
-    cursor.execute("""
+  cursor.execute("""
         CREATE TABLE IF NOT EXISTS reports (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
@@ -53,26 +207,24 @@ def init_db():
         )
     """)
 
-    # Автоматическая проверка и добавление ЛЮБЫХ отсутствующих колонок в reports
-    cursor.execute("PRAGMA table_info(reports)")
-    existing_columns = [column[1] for column in cursor.fetchall()]
+  cursor.execute("PRAGMA table_info(reports)")
+  existing_columns = [column[1] for column in cursor.fetchall()]
 
-    required_columns = {
-        "points": "INTEGER DEFAULT 0",
-        "comment": "TEXT DEFAULT ''",
-        "latitude": "REAL DEFAULT 0.0",
-        "longitude": "REAL DEFAULT 0.0",
-        "photo_path": "TEXT DEFAULT ''",
-        "action_type": "TEXT DEFAULT ''",
-        "status": "TEXT DEFAULT 'pending'",
-    }
+  required_columns = {
+      "points": "INTEGER DEFAULT 0",
+      "comment": "TEXT DEFAULT ''",
+      "latitude": "REAL DEFAULT 0.0",
+      "longitude": "REAL DEFAULT 0.0",
+      "photo_path": "TEXT DEFAULT ''",
+      "action_type": "TEXT DEFAULT ''",
+      "status": "TEXT DEFAULT 'pending'",
+  }
 
-    for col_name, col_type in required_columns.items():
-        if col_name not in existing_columns:
-            cursor.execute(f"ALTER TABLE reports ADD COLUMN {col_name} {col_type}")
+  for col_name, col_type in required_columns.items():
+    if col_name not in existing_columns:
+      cursor.execute(f"ALTER TABLE reports ADD COLUMN {col_name} {col_type}")
 
-    # Таблица медалей
-    cursor.execute("""
+  cursor.execute("""
         CREATE TABLE IF NOT EXISTS medals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
@@ -85,85 +237,81 @@ def init_db():
         )
     """)
 
-    conn.commit()
-    conn.close()
+  conn.commit()
+  conn.close()
 
 
-# Запускаем миграцию при старте сервера
 init_db()
 
+app = FastAPI(title="Eco Khujand API")
 
-# --- Отправка уведомлений в Telegram админу ---
-async def send_telegram_photo_with_buttons(photo_bytes: bytes, caption: str, report_id: int):
-    if not BOT_TOKEN or BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
-        print("BOT_TOKEN не настроен!")
-        return
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
 
-    reply_markup = {
-        "inline_keyboard": [
-            [
-                {"text": "✅ Одобрить", "callback_data": f"approve_{report_id}"},
-                {"text": "❌ Отклонить", "callback_data": f"reject_{report_id}"},
-            ]
-        ]
-    }
-
-    data = aiohttp.FormData()
-    data.add_field("chat_id", str(ADMIN_ID))
-    data.add_field("caption", caption)
-    data.add_field("parse_mode", "HTML")
-    data.add_field("reply_markup", json.dumps(reply_markup))
-    data.add_field("photo", photo_bytes, filename="report.jpg", content_type="image/jpeg")
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, data=data) as resp:
-            if resp.status != 200:
-                print("Ошибка отправки в Telegram:", await resp.text())
+# Запуск бота при старте сервера FastAPI
+@app.on_event("startup")
+async def on_startup():
+  await bot.delete_webhook(drop_pending_updates=True)
+  asyncio.create_task(dp.start_polling(bot))
 
 
 # --- API ENDPOINTS ---
 
+
 @app.get("/")
 def read_root():
-    return {"status": "ok", "message": "Eco Khujand API is running"}
+  return {"status": "ok", "message": "Eco Khujand API & Bot running"}
 
 
 @app.get("/api/user/{user_id}")
 def get_user(user_id: int):
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
+  conn = sqlite3.connect(DB_NAME)
+  cursor = conn.cursor()
 
-    cursor.execute("SELECT points, username, avatar_url FROM users WHERE user_id = ?", (user_id,))
-    user_row = cursor.fetchone()
+  cursor.execute(
+      "SELECT points, username, avatar_url FROM users WHERE user_id = ?",
+      (user_id,),
+  )
+  user_row = cursor.fetchone()
 
-    cursor.execute("SELECT COUNT(*) FROM reports WHERE user_id = ? AND status = 'approved'", (user_id,))
-    reports_count = cursor.fetchone()[0]
+  cursor.execute(
+      "SELECT COUNT(*) FROM reports WHERE user_id = ? AND status = 'approved'",
+      (user_id,),
+  )
+  reports_count = cursor.fetchone()[0]
 
-    cursor.execute("SELECT medal_key FROM medals WHERE user_id = ? AND status = 'approved'", (user_id,))
-    medals = [row[0] for row in cursor.fetchall()]
+  cursor.execute(
+      "SELECT medal_key FROM medals WHERE user_id = ? AND status = 'approved'",
+      (user_id,),
+  )
+  medals = [row[0] for row in cursor.fetchall()]
 
-    conn.close()
+  conn.close()
 
-    if not user_row:
-        return {
-            "user_id": user_id,
-            "points": 0,
-            "username": "Пользователь",
-            "avatar_url": "",
-            "reports_count": 0,
-            "medals": [],
-        }
-
+  if not user_row:
     return {
         "user_id": user_id,
-        "points": user_row[0],
-        "username": user_row[1] or "Пользователь",
-        "avatar_url": user_row[2] or "",
-        "reports_count": reports_count,
-        "medals": medals,
+        "points": 0,
+        "username": "Пользователь",
+        "avatar_url": "",
+        "reports_count": 0,
+        "medals": [],
     }
+
+  return {
+      "user_id": user_id,
+      "points": user_row[0],
+      "username": user_row[1] or "Пользователь",
+      "avatar_url": user_row[2] or "",
+      "reports_count": reports_count,
+      "medals": medals,
+  }
 
 
 @app.post("/api/report")
@@ -176,38 +324,70 @@ async def create_report(
     longitude: Optional[float] = Form(None),
     photo: UploadFile = File(...),
 ):
-    try:
-        photo_bytes = await photo.read()
+  try:
+    photo_bytes = await photo.read()
 
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
 
-        cursor.execute("""
+    cursor.execute(
+        """
             INSERT INTO reports (user_id, action_type, comment, latitude, longitude, photo_path, points, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
-        """, (user_id, action_type, comment, latitude, longitude, "telegram_media", points))
+        """,
+        (
+            user_id,
+            action_type,
+            comment,
+            latitude,
+            longitude,
+            "telegram_media",
+            points,
+        ),
+    )
 
-        report_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
+    report_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
 
-        caption = (
-            f"<b>🌱 Новый эко-отчёт #{report_id}</b>\n\n"
-            f"👤 <b>User ID:</b> <code>{user_id}</code>\n"
-            f"🏷 <b>Действие:</b> {action_type}\n"
-            f"⭐ <b>Баллы:</b> +{points}\n"
-            f"💬 <b>Комментарий:</b> {comment if comment else 'Отсутствует'}\n"
-        )
-        if latitude and longitude:
-            caption += f"📍 <b>Координаты:</b> {latitude:.5f}, {longitude:.5f}\n"
+    caption = (
+        f"<b>🌱 Новый эко-отчёт #{report_id}</b>\n\n👤 <b>User ID:</b>"
+        f" <code>{user_id}</code>\n🏷 <b>Действие:</b> {action_type}\n⭐"
+        f" <b>Баллы:</b> +{points}\n💬 <b>Комментарий:</b>"
+        f" {comment if comment else 'Отсутствует'}\n"
+    )
+    if latitude and longitude:
+      caption += f"📍 <b>Координаты:</b> {latitude:.5f}, {longitude:.5f}\n"
 
-        await send_telegram_photo_with_buttons(photo_bytes, caption, report_id)
+    reply_markup = {
+        "inline_keyboard": [[
+            {"text": "✅ Одобрить", "callback_data": f"approve_{report_id}"},
+            {"text": "❌ Отклонить", "callback_data": f"reject_{report_id}"},
+        ]]
+    }
 
-        return {
-            "status": "success",
-            "message": "Отчёт успешно отправлен!",
-            "report_id": report_id,
-        }
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
+    data = aiohttp.FormData()
+    data.add_field("chat_id", str(ADMIN_ID))
+    data.add_field("caption", caption)
+    data.add_field("parse_mode", "HTML")
+    data.add_field("reply_markup", json.dumps(reply_markup))
+    data.add_field(
+        "photo", photo_bytes, filename="report.jpg", content_type="image/jpeg"
+    )
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка обработки отчёта: {str(e)}")
+    async with aiohttp.ClientSession() as session:
+      async with session.post(url, data=data) as resp:
+        if resp.status != 200:
+          print("Ошибка отправки в Telegram:", await resp.text())
+
+    return {
+        "status": "success",
+        "message": "Отчёт успешно отправлен!",
+        "report_id": report_id,
+    }
+
+  except Exception as e:
+    raise HTTPException(
+        status_code=500, detail=f"Ошибка обработки отчёта: {str(e)}"
+    )  
