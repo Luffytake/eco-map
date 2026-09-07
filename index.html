@@ -3,14 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Khujand Eco Bot</title>
-
+    <title>Eco Khujand App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
     <!-- Leaflet CSS & JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <!-- Telegram WebApp SDK -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Leaflet Routing Machine CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
 
     <style>
         * {
@@ -20,335 +22,561 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             -webkit-tap-highlight-color: transparent;
         }
-
-        body, html {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
+        body {
             background-color: #121212;
             color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
         }
-
-        /* Контейнеры страниц */
+        
+        /* Область контента и вкладок */
+        .content-area {
+            flex: 1;
+            position: relative;
+            overflow-y: auto;
+        }
         .tab-content {
             display: none;
             width: 100%;
-            height: calc(100% - 65px);
-            position: absolute;
-            top: 0;
-            left: 0;
-            overflow-y: auto;
+            height: 100%;
         }
-
         .tab-content.active {
-            display: block;
+            display: flex;
+            flex-direction: column;
         }
 
+        /* --- ВКЛАДКА 1: КАРТА --- */
         #map {
             width: 100%;
             height: 100%;
-            z-index: 1;
+            flex: 1;
         }
-
-        /* Форма Отчёта (Тёмный стиль с фото) */
-        .container {
-            padding: 20px;
-        }
-
-        .title {
-            color: #4cd964;
-            font-size: 20px;
-            font-weight: bold;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .form-group {
-            margin-bottom: 18px;
-        }
-
-        .form-group label {
-            display: block;
-            font-size: 14px;
-            color: #a0a0a0;
-            margin-bottom: 8px;
-        }
-
-        .form-control {
-            width: 100%;
-            padding: 14px;
-            background: #1e1e1e;
-            border: 1px solid #333;
-            border-radius: 12px;
-            color: #fff;
-            font-size: 15px;
-            outline: none;
-        }
-
-        .file-input-wrapper {
-            background: #1e1e1e;
-            border: 1px solid #333;
-            border-radius: 12px;
-            padding: 10px 14px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .file-btn {
-            background: #2c2c2e;
-            color: #fff;
-            padding: 8px 14px;
+        .leaflet-routing-container {
+            background-color: rgba(30, 30, 30, 0.95) !important;
+            color: #fff !important;
             border-radius: 8px;
-            font-size: 13px;
-            cursor: pointer;
-            border: none;
+            font-size: 12px;
+            max-width: 250px;
         }
-
-        .submit-btn {
-            width: 100%;
-            background: #2e7d32;
+        .route-btn {
+            background-color: #4CAF50;
             color: white;
             border: none;
-            padding: 15px;
-            border-radius: 12px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 6px;
             font-weight: bold;
-            font-size: 16px;
-            margin-top: 10px;
+            width: 100%;
+        }
+        .locate-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: #1e1e1e;
+            color: #fff;
+            border: 1px solid #333;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+        }
+
+        /* --- ВКЛАДКА 2: ФОРМА ОТЧЕТА --- */
+        .container {
+            padding: 16px;
+            width: 100%;
+            max-width: 420px;
+            margin: 0 auto;
+        }
+        .card {
+            background-color: #1e1e1e;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border: 1px solid #2a2a2a;
+        }
+        h2 {
+            font-size: 18px;
+            margin-bottom: 12px;
+            color: #4CAF50;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 14px;
+            color: #aaa;
+        }
+        select, input, button.action-btn {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 12px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background-color: #252525;
+            color: #fff;
+            font-size: 14px;
+        }
+        button.action-btn {
+            background-color: #4CAF50;
+            font-weight: bold;
+            border: none;
             cursor: pointer;
         }
-
-        /* Профиль */
-        .profile-card {
-            background: #1e1e1e;
-            padding: 20px;
-            border-radius: 16px;
-            text-align: center;
-            margin-bottom: 16px;
+        button.action-btn:disabled {
+            background-color: #555555;
+            cursor: not-allowed;
         }
 
+        /* --- ВКЛАДКА 3: ДИЗАЙН ПРОФИЛЯ --- */
+        .profile-wrapper {
+            padding: 20px 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 420px;
+            margin: 0 auto;
+        }
+        .avatar-container {
+            margin-top: 10px;
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            overflow: hidden;
+            background-color: #4CAF50;
+            border: 3px solid #4CAF50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            font-weight: bold;
+            color: #121212;
+        }
+        .avatar-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .username {
+            margin-top: 10px;
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
         .stats-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 12px;
-            margin-top: 16px;
-        }
-
-        .stat-box {
-            background: #252525;
-            padding: 14px;
-            border-radius: 12px;
-        }
-
-        /* Нижняя навигация (как на скриншоте) */
-        .bottom-nav {
-            position: fixed;
-            bottom: 0;
-            left: 0;
             width: 100%;
-            height: 65px;
-            background: #121212;
+            margin-top: 20px;
+        }
+        .stat-card {
+            background-color: #1e1e1e;
+            border-radius: 12px;
+            padding: 14px;
+            text-align: center;
+            border: 1px solid #2a2a2a;
+        }
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #aaaaaa;
+            margin-top: 4px;
+        }
+        .rank-card {
+            background-color: #1e1e1e;
+            border-radius: 16px;
+            width: 100%;
+            margin-top: 16px;
+            padding: 16px;
+            border: 1px solid #2a2a2a;
+        }
+        .rank-header {
             display: flex;
-            justify-content: space-around;
+            justify-content: space-between;
             align-items: center;
-            border-top: 1px solid #222;
-            z-index: 1000;
+            margin-bottom: 8px;
+        }
+        .rank-title {
+            color: #4CAF50;
+            font-size: 15px;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+        .progress-bar-bg {
+            background-color: #333333;
+            height: 14px;
+            border-radius: 7px;
+            width: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+        .progress-bar-fill {
+            background-color: #4CAF50;
+            height: 100%;
+            width: 0%;
+            transition: width 0.4s ease;
         }
 
-        .nav-btn {
-            background: none;
-            border: none;
+        /* --- НИЖНЯЯ ПАНЕЛЬ НАВИГАЦИИ --- */
+        .nav-bar {
+            display: flex;
+            background-color: #1a1a1a;
+            border-top: 1px solid #2a2a2a;
+            height: 60px;
+            z-index: 100;
+        }
+        .nav-item {
+            flex: 1;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            color: #666666;
+            color: #888;
             font-size: 11px;
             cursor: pointer;
-            flex: 1;
-            height: 100%;
+            background: none;
+            border: none;
         }
-
-        .nav-btn .icon {
-            font-size: 22px;
-            margin-bottom: 3px;
+        .nav-item.active {
+            color: #4CAF50;
+            font-weight: bold;
         }
-
-        .nav-btn.active {
-            color: #4cd964;
+        .nav-item span {
+            font-size: 18px;
+            margin-bottom: 2px;
         }
     </style>
 </head>
 <body>
 
-    <!-- Вкладка Карта -->
-    <div id="map-tab" class="tab-content active">
-        <div id="map"></div>
-    </div>
-
-    <!-- Вкладка Отчёт -->
-    <div id="report-tab" class="tab-content">
-        <div class="container">
-            <div class="title">🌱 Отправить эко-отчёт</div>
-            <form id="reportForm" onsubmit="sendReport(event)">
-                <div class="form-group">
-                    <label>Выберите действие:</label>
-                    <select id="action_type" class="form-control" required>
-                        <option value="Сдача пластика / стекла (+20 баллов)">🍾 Сдача пластика / стекла (+20 баллов)</option>
-                        <option value="Переполненный бак (+20 баллов)">🗑 Переполненный бак (+20 баллов)</option>
-                        <option value="Уборка территории (+50 баллов)">🧹 Уборка территории (+50 баллов)</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Фотография работы (обязательно):</label>
-                    <div class="file-input-wrapper">
-                        <label for="photo" class="file-btn">Выбрать файл</label>
-                        <span id="file-name" style="font-size: 13px; color: #888;">Файл не выбран</span>
-                        <input type="file" id="photo" accept="image/*" style="display: none;" onchange="updateFileName(this)" required>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Комментарий:</label>
-                    <textarea id="comment" class="form-control" rows="3" placeholder="Опишите детали..."></textarea>
-                </div>
-
-                <button type="submit" class="submit-btn">Отправить</button>
-            </form>
+    <div class="content-area">
+        <!-- Вкладка 1: Карта -->
+        <div id="tab-map" class="tab-content active">
+            <button class="locate-btn" onclick="requestLocation()">📍 Где я?</button>
+            <div id="map"></div>
         </div>
-    </div>
 
-    <!-- Вкладка Профиль -->
-    <div id="profile-tab" class="tab-content">
-        <div class="container">
-            <div class="profile-card">
-                <h2 id="user-name">Пользователь</h2>
-                <p id="user-id" style="color: #666; font-size: 13px; margin-top: 4px;">ID: -</p>
+        <!-- Вкладка 2: Отправить отчёт -->
+        <div id="tab-report" class="tab-content">
+            <div class="container">
+                <div class="card">
+                    <h2>🌱 Отправить эко-отчёт</h2>
+                    
+                    <label for="action-type">Выберите действие:</label>
+                    <select id="action-type">
+                        <option value="Уборка территории" data-points="30">🧹 Уборка территории (+30 баллов)</option>
+                        <option value="Сдача пластика / стекла" data-points="20">🍾 Сдача пластика / стекла (+20 баллов)</option>
+                        <option value="Сдача макулатуры" data-points="15">📦 Сдача макулатуры (+15 баллов)</option>
+                        <option value="Сигнал о переполнении" data-points="10">⚠️ Сигнал о переполненном баке (+10 баллов)</option>
+                    </select>
+
+                    <label for="photo-file">Фотография работы (обязательно):</label>
+                    <input type="file" id="photo-file" accept="image/*">
+
+                    <label for="report-comment">Комментарий (необязательно):</label>
+                    <input type="text" id="report-comment" placeholder="Например: Собрал 2 пакета пластика...">
+
+                    <button class="action-btn" id="submit-btn" onclick="sendReport()">Отправить на проверку</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Вкладка 3: Профиль -->
+        <div id="tab-profile" class="tab-content">
+            <div class="profile-wrapper">
+                <div class="avatar-container" id="avatarBox">
+                    👤
+                </div>
+                <div class="username" id="user-name">Загрузка...</div>
+
                 <div class="stats-grid">
-                    <div class="stat-box">
-                        <div id="user-points" style="font-size: 22px; font-weight: bold; color: #4cd964;">0</div>
-                        <div style="font-size: 12px; color: #888;">Баллы</div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="user-points">0</div>
+                        <div class="stat-label">Эко-баллы 🏆</div>
                     </div>
-                    <div class="stat-box">
-                        <div id="user-reports" style="font-size: 22px; font-weight: bold; color: #4cd964;">0</div>
-                        <div style="font-size: 12px; color: #888;">Отчёты</div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="reports-count">0</div>
+                        <div class="stat-label">Отчётов 📋</div>
+                    </div>
+                </div>
+
+                <div class="rank-card">
+                    <div class="rank-header">
+                        <div class="rank-title" id="rank-title">Эко-Новичок</div>
+                        <div style="font-size: 12px; color: #aaa;" id="rank-progress-text">0 / 100 XP</div>
+                    </div>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill" id="rank-bar" style="width: 0%;"></div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Навигация (Нижняя панель с фото) -->
-    <nav class="bottom-nav">
-        <button class="nav-btn active" id="btn-map" onclick="switchTab('map')">
-            <span class="icon">🗺</span>
-            <span>Карта</span>
+    <!-- Навигационная панель -->
+    <div class="nav-bar">
+        <button class="nav-item active" onclick="switchTab('map')">
+            <span>🗺️</span> Карта
         </button>
-        <button class="nav-btn" id="btn-report" onclick="switchTab('report')">
-            <span class="icon">➕</span>
-            <span>Отчёт</span>
+        <button class="nav-item" onclick="switchTab('report')">
+            <span>➕</span> Отчёт
         </button>
-        <button class="nav-btn" id="btn-profile" onclick="switchTab('profile')">
-            <span class="icon">👤</span>
-            <span>Профиль</span>
+        <button class="nav-item" onclick="switchTab('profile')">
+            <span>👤</span> Профиль
         </button>
-    </nav>
+    </div>
 
     <script>
         const tg = window.Telegram?.WebApp;
         if (tg) {
-            tg.ready();
             tg.expand();
+            tg.ready();
         }
 
-        const currentUserId = tg?.initDataUnsafe?.user?.id || 5581941983;
+        const SERVER_URL = "https://khujand-eco-bot.onrender.com";
 
-        function updateFileName(input) {
-            const fileName = input.files[0] ? input.files[0].name : "Файл не выбран";
-            document.getElementById('file-name').innerText = fileName;
-        }
-
+        // --- Переключение вкладок ---
         function switchTab(tabName) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
 
-            document.getElementById(`${tabName}-tab`).classList.add('active');
-            document.getElementById(`btn-${tabName}`).classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            
+            const targetBtn = Array.from(document.querySelectorAll('.nav-item')).find(btn => 
+                btn.getAttribute('onclick')?.includes(tabName)
+            );
+            if (targetBtn) {
+                targetBtn.classList.add('active');
+            }
 
             if (tabName === 'map') {
-                setTimeout(() => map.invalidateSize(), 200);
-            } else if (tabName === 'profile') {
+                setTimeout(() => map.invalidateSize(), 100);
+            }
+            if (tabName === 'profile') {
                 loadProfile();
             }
         }
 
-        async function loadProfile() {
-            try {
-                const res = await fetch(`https://khujand-eco-bot.onrender.com/api/user/${currentUserId}`);
-                const data = await res.json();
-                document.getElementById('user-name').innerText = tg?.initDataUnsafe?.user?.first_name || data.username || 'Пользователь';
-                document.getElementById('user-id').innerText = `ID: ${currentUserId}`;
-                document.getElementById('user-points').innerText = data.points || 0;
-                document.getElementById('user-reports').innerText = data.reports_count || 0;
-            } catch (e) {
-                console.error(e);
-            }
-        }
+        // --- Инициализация карты ---
+        const map = L.map('map').setView([40.2950, 69.6100], 13);
 
-        // Карта
-        const map = L.map('map').setView([40.292341, 69.592556], 14);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
 
-        // Метки
-        const points = [
-            [40.299929, 69.620699], [40.299659, 69.620296], [40.295390, 69.619887], 
-            [40.299663, 69.617160], [40.297905, 69.615246], [40.290171, 69.591860],
-            [40.294807, 69.594147], [40.295446, 69.590084], [40.292341, 69.592556]
-        ];
+        const containerStyle = {
+            radius: 8,
+            fillColor: "#4CAF50",
+            color: "#ffffff",
+            weight: 1.5,
+            opacity: 1,
+            fillOpacity: 0.8
+        };
 
-        points.forEach(pt => {
-            L.circleMarker(pt, { radius: 7, fillColor: "#2ecc71", color: "#fff", weight: 2, fillOpacity: 0.9 }).addTo(map);
-        });
+        const urnStyle = {
+            radius: 6,
+            fillColor: "#2196F3",
+            color: "#ffffff",
+            weight: 1.5,
+            opacity: 1,
+            fillOpacity: 0.8
+        };
 
-        async function sendReport(event) {
-            event.preventDefault();
-            const actionType = document.getElementById('action_type').value;
-            const comment = document.getElementById('comment').value;
-            const photoInput = document.getElementById('photo');
+        let userLocation = null;
+        let routingControl = null;
 
-            if (!photoInput.files[0]) {
-                alert('Выберите фото!');
+        // --- Определение геолокации ---
+        function requestLocation() {
+            if (!navigator.geolocation) {
+                alert("Геолокация не поддерживается вашим устройством/браузером.");
                 return;
             }
 
-            const formData = new FormData();
-            formData.append('user_id', currentUserId);
-            formData.append('action_type', actionType);
-            formData.append('comment', comment);
-            formData.append('points', actionType.includes("Уборка") ? 50 : 20);
-            formData.append('photo', photoInput.files[0]);
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    userLocation = [position.coords.latitude, position.coords.longitude];
+                    map.setView(userLocation, 16);
+
+                    if (window.userMarker) {
+                        window.userMarker.setLatLng(userLocation);
+                    } else {
+                        window.userMarker = L.circleMarker(userLocation, {
+                            radius: 8,
+                            fillColor: "#E91E63",
+                            color: "#ffffff",
+                            weight: 2,
+                            opacity: 1,
+                            fillOpacity: 0.9
+                        }).addTo(map).bindPopup("<b>Вы здесь</b>").openPopup();
+                    }
+                },
+                (error) => {
+                    alert("Не удалось определить местоположение.");
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+        }
+
+        // --- Построение маршрута ---
+        function buildRoute(destLat, destLng) {
+            if (!userLocation) {
+                alert("Сначала укажите ваше местоположение (кнопка 📍 Где я?)");
+                requestLocation();
+                return;
+            }
+
+            if (routingControl) {
+                map.removeControl(routingControl);
+            }
+
+            routingControl = L.Routing.control({
+                waypoints: [
+                    L.latLng(userLocation[0], userLocation[1]),
+                    L.latLng(destLat, destLng)
+                ],
+                router: L.Routing.osrmv1({ profile: 'foot' }),
+                lineOptions: {
+                    styles: [{ color: '#4CAF50', opacity: 0.8, weight: 6 }]
+                },
+                addWaypoints: false,
+                draggableWaypoints: false,
+                fitSelectedRoutes: true,
+                showAlternatives: false
+            }).addTo(map);
+        }
+
+        // --- Точки на карте ---
+        L.circleMarker([40.299929, 69.620699], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.299929, 69.620699)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.299659, 69.620296], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br>Рядом со скамейкой<br><button class='route-btn' onclick='buildRoute(40.299659, 69.620296)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.295390, 69.619887], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.295390, 69.619887)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.299663, 69.617160], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.299663, 69.617160)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.297905, 69.615246], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br>Рядом со светофором<br><button class='route-btn' onclick='buildRoute(40.297905, 69.615246)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.290171, 69.591860], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.290171, 69.591860)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.294807, 69.594147], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.294807, 69.594147)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.295446, 69.590084], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.295446, 69.590084)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.292341, 69.592556], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.292341, 69.592556)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.294797, 69.594224], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.294797, 69.594224)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.295714, 69.592587], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.295714, 69.592587)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.291217, 69.595520], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.291217, 69.595520)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.298079, 69.598126], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.298079, 69.598126)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.298875, 69.600408], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.298875, 69.600408)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.299935, 69.603779], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.299935, 69.603779)'>Маршрут 🚶‍♂️</button>");
+
+        // --- Взаимодействие с API Профиля ---
+        async function loadProfile() {
+            const user = tg?.initDataUnsafe?.user;
+            const userId = user?.id || 123456;
+            const userName = user?.first_name || "Эко Активист";
+            
+            document.getElementById('user-name').innerText = userName;
+
+            if (user?.photo_url) {
+                document.getElementById('avatarBox').innerHTML = `<img src="${user.photo_url}" class="avatar-img" alt="Avatar">`;
+            } else {
+                document.getElementById('avatarBox').innerText = userName.charAt(0).toUpperCase();
+            }
 
             try {
-                const response = await fetch('https://khujand-eco-bot.onrender.com/api/report', {
+                const res = await fetch(`${SERVER_URL}/api/user/${userId}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const points = data.points || 0;
+                    const reports = data.reports_count || 0;
+
+                    document.getElementById('user-points').innerText = points;
+                    document.getElementById('reports-count').innerText = reports;
+
+                    // Расчет ранга
+                    let rankName = "Эко-Новичок";
+                    let maxPoints = 100;
+                    if (points >= 100 && points < 300) { rankName = "Эко-Защитник"; maxPoints = 300; }
+                    else if (points >= 300) { rankName = "Эко-Герой"; maxPoints = 500; }
+
+                    const progressPct = Math.min(100, Math.round((points / maxPoints) * 100));
+                    document.getElementById('rank-title').innerText = rankName;
+                    document.getElementById('rank-progress-text').innerText = `${points} / ${maxPoints} XP`;
+                    document.getElementById('rank-bar').style.width = `${progressPct}%`;
+                }
+            } catch (e) {
+                console.error("Ошибка загрузки профиля:", e);
+            }
+        }
+
+        // --- Функция отправки отчёта ---
+        async function sendReport() {
+            const fileInput = document.getElementById('photo-file');
+            const actionSelect = document.getElementById('action-type');
+            const commentInput = document.getElementById('report-comment');
+            const submitBtn = document.getElementById('submit-btn');
+
+            if (!fileInput.files[0]) {
+                alert("Пожалуйста, прикрепите фотографию!");
+                return;
+            }
+
+            const selectedOption = actionSelect.options[actionSelect.selectedIndex];
+            const actionType = selectedOption.value;
+            const points = selectedOption.getAttribute('data-points');
+            const comment = commentInput.value.trim();
+            const userId = tg?.initDataUnsafe?.user?.id || 123456;
+
+            const formData = new FormData();
+            formData.append('user_id', userId);
+            formData.append('action_type', actionType);
+            formData.append('points', points);
+            formData.append('comment', comment);
+            formData.append('photo', fileInput.files[0]);
+
+            if (userLocation) {
+                formData.append('latitude', userLocation[0]);
+                formData.append('longitude', userLocation[1]);
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerText = "Отправка...";
+
+            try {
+                const res = await fetch(`${SERVER_URL}/api/report`, {
                     method: 'POST',
                     body: formData
                 });
-                if (response.ok) {
-                    alert('✅ Отчёт отправлен!');
-                    document.getElementById('reportForm').reset();
-                    document.getElementById('file-name').innerText = "Файл не выбран";
-                    switchTab('map');
+
+                if (res.ok) {
+                    alert("Отчёт успешно отправлен!");
+                    fileInput.value = "";
+                    commentInput.value = "";
+                    switchTab('profile');
                 } else {
-                    const err = await response.json();
-                    alert('Ошибка: ' + (err.detail || 'Не удалось отправить'));
+                    const errText = await res.text();
+                    alert(`Ошибка сервера (${res.status}): ${errText}`);
                 }
             } catch (e) {
-                alert('Ошибка подключения к серверу');
+                alert(`Ошибка сети: ${e.message}`);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerText = "Отправить на проверку";
             }
         }
+
+        requestLocation();
+        loadProfile();
     </script>
 </body>
-</html>
+</html>   
