@@ -325,7 +325,7 @@
         </div>
     </div>
 
-    <!-- Навигационная панель -->
+    <!-- Нижняя панель навигации -->
     <div class="nav-bar">
         <button class="nav-item active" onclick="switchTab('map')">
             <span>🗺️</span> Карта
@@ -345,8 +345,7 @@
             tg.ready();
         }
 
-        const SERVER_URL = "https://khujand-eco-bot.onrender.com";
-
+        const SERVER_URL = "https://eco-map-production.up.railway.app";
         // --- Переключение вкладок ---
         function switchTab(tabName) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -478,6 +477,38 @@
         L.circleMarker([40.298079, 69.598126], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.298079, 69.598126)'>Маршрут 🚶‍♂️</button>");
         L.circleMarker([40.298875, 69.600408], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.298875, 69.600408)'>Маршрут 🚶‍♂️</button>");
         L.circleMarker([40.299935, 69.603779], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.299935, 69.603779)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.293488, 69.591899], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.293488, 69.591899)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.293580, 69.597363], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.293580, 69.597363)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.293501, 69.597172], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.293501, 69.597172)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.291407, 69.596333], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.291407, 69.596333)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.290115, 69.591836], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.290115, 69.591836)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.290301, 69.592194], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.290301, 69.592194)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.296212, 69.610370], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.296212, 69.610370)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.297263, 69.613332], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.297263, 69.613332)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.297303, 69.613455], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.297303, 69.613455)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.297960, 69.615260], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.297960, 69.615260)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.297091, 69.615816], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.297091, 69.615816)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.296065, 69.616349], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br><button class='route-btn' onclick='buildRoute(40.296065, 69.616349)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.295661, 69.616685], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.295661, 69.616685)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.294912, 69.617156], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.294912, 69.617156)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.294285, 69.617172], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.294285, 69.617172)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.294182, 69.617235], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.294182, 69.617235)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.291248, 69.619102], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.291248, 69.619102)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.287761, 69.618199], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.287761, 69.618199)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.285293, 69.618650], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.285293, 69.618650)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.285131, 69.618612], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.285131, 69.618612)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.285541, 69.620910], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.285541, 69.620910)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.285599, 69.621183], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.285599, 69.621183)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.284216, 69.616086], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.284216, 69.616086)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.300167, 69.632497], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.300167, 69.632497)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.300200, 69.603449], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.300200, 69.603449)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.285280, 69.623239], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.285280, 69.623239)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.285196, 69.622087], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.285196, 69.622087)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.285141, 69.621830], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.285141, 69.621830)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.276337, 69.609382], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.276337, 69.609382)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.278314, 69.613180], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.278314, 69.613180)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.277596, 69.611914], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.277596, 69.611914)'>Маршрут 🚶‍♂️</button>");
+        L.circleMarker([40.295089, 69.619780], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.295089, 69.619780)'>Маршрут 🚶‍♂️</button>");
 
         // --- Взаимодействие с API Профиля ---
         async function loadProfile() {
@@ -579,4 +610,4 @@
         loadProfile();
     </script>
 </body>
-</html>   
+</html>
