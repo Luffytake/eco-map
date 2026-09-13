@@ -11,14 +11,24 @@ from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-DB_NAME = "eco_khujand.db"
+# --- Конфигурация базы данных для Railway (Volume /app/data) ---
+DB_DIR = "/app/data"
+if os.path.exists(DB_DIR):
+    DB_NAME = os.path.join(DB_DIR, "eco_khujand.db")
+else:
+    DB_NAME = "eco_khujand.db"
+
 BOT_TOKEN = os.getenv(
     "BOT_TOKEN", "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0"
 )
 ADMIN_ID = os.getenv("ADMIN_ID", "5581941983")
 
-WEBAPP_MAP_URL = "https://khujand-eco-bot.onrender.com/index.html?v=1.2"
-WEBAPP_PROFILE_URL = "https://khujand-eco-bot.onrender.com/profile.html?v=1.3"
+# ⚠️ Впишите ваш домен из Railway (без https://) или передайте его через переменную окружения RAILWAY_PUBLIC_DOMAIN
+RAILWAY_DOMAIN = os.getenv("RAILWAY_PUBLIC_DOMAIN", "eco-map-production.up.railway.app")
+BASE_URL = f"https://{RAILWAY_DOMAIN}" if not RAILWAY_DOMAIN.startswith("http") else RAILWAY_DOMAIN
+
+WEBAPP_MAP_URL = f"{BASE_URL}/index.html?v=1.2"
+WEBAPP_PROFILE_URL = f"{BASE_URL}/profile.html?v=1.3"
 
 # --- Инициализация Bot и Dispatcher ---
 bot = Bot(token=BOT_TOKEN)
@@ -107,6 +117,8 @@ async def handle_report_moderation(callback: types.CallbackQuery):
         return
 
     user_id, points, status = report
+    user_id = int(user_id)
+    points = int(points)
 
     if status != "pending":
         await callback.answer(
@@ -116,16 +128,26 @@ async def handle_report_moderation(callback: types.CallbackQuery):
         return
 
     if action in ["approve", "approve_report"]:
+        # 1. Обновляем статус отчета
         cursor.execute(
             "UPDATE reports SET status = 'approved' WHERE id = ?", (report_id,)
         )
-        cursor.execute(
-            """
-                INSERT INTO users (user_id, points) VALUES (?, ?)
-                ON CONFLICT(user_id) DO UPDATE SET points = points + ?
-            """,
-            (user_id, points, points),
-        )
+
+        # 2. Проверяем наличие пользователя и зачисляем баллы
+        cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+        user_exists = cursor.fetchone()
+
+        if user_exists:
+            cursor.execute(
+                "UPDATE users SET points = points + ? WHERE user_id = ?",
+                (points, user_id),
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO users (user_id, points, username, avatar_url) VALUES (?, ?, ?, ?)",
+                (user_id, points, "Пользователь", ""),
+            )
+
         conn.commit()
         conn.close()
 
@@ -411,4 +433,4 @@ async def create_report(
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Ошибка обработки отчёта: {str(e)}"
-        )
+        )      
