@@ -92,42 +92,7 @@ async def api_receive_report(
     )
     report_id = cursor.lastrowid
     conn.commit()
-    
-    # Получаем информацию о пользователе из Telegram для красивого уведомления админу
-    # (Здесь можно использовать стандартный айди чата администратора или отправку в группу модерации)
-    # Для демонстрации отправим уведомление с кнопками модерации (замените ADMIN_CHAT_ID на ваш реальный ID или чат)
-    
     conn.close()
-
-    # Пример отправки отчета админу (замените 123456789 на ID администратора)
-    ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "5581941983")
-    try:
-        markup = types.InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    types.InlineKeyboardButton(text="✅ Одобрить", callback_data=f"approve_{report_id}"),
-                    types.InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject_{report_id}")
-                ]
-            ]
-        )
-        caption = (
-            f"📥 <b>Новый эко-отчёт #{report_id}</b>\n\n"
-            f"👤 User ID: <code>{user_id}</code>\n"
-            f"🛠 Действие: <b>{action_type}</b>\n"
-            f"🏆 Баллы: <b>+{points}</b>\n"
-            f"💬 Комментарий: {comment if comment else 'отсутствует'}"
-        )
-        
-        # Отправляем фото с кнопками модерации
-        await bot.send_photo(
-            chat_id=ADMIN_CHAT_ID,
-            photo=types.FSInputFile(file_path),
-            caption=caption,
-            parse_mode="HTML",
-            reply_markup=markup
-        )
-    except Exception as e:
-        print(f"Не удалось отправить отчет администратору: {e}")
 
     return {"status": "success", "report_id": report_id}
 
@@ -209,7 +174,7 @@ async def handle_report_moderation(callback: types.CallbackQuery):
         conn.close()
 
         new_caption = (callback.message.caption or "") + "\n\n<b>❌ ОТКЛОНЕНО.</b>"
-        await callback.message.edit_caption(caption=new_caption, parse_mode="HTML", parse_mode="HTML", reply_markup=None)
+        await callback.message.edit_caption(caption=new_caption, parse_mode="HTML", reply_markup=None)
         await callback.answer("❌ Отчёт отклонён.")
 
         try:
