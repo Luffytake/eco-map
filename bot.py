@@ -112,6 +112,24 @@ async def api_get_user(user_id: int):
     conn.close()
     return {"points": points, "reports_count": reports_count}
 
+# --- НОВЫЙ ЭНДПОИНТ ДЛЯ ЛИДЕРБОРДА ---
+@app.get("/api/leaderboard")
+async def api_get_leaderboard():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, points FROM users ORDER BY points DESC LIMIT 10")
+    rows = cursor.fetchall()
+    conn.close()
+    
+    leaderboard = []
+    for rank, (user_id, points) in enumerate(rows, start=1):
+        leaderboard.append({
+            "rank": rank,
+            "user_id": user_id,
+            "points": points
+        })
+    return leaderboard
+
 
 # --- МОДЕРАЦИЯ ОТЧЕТОВ АДМИНОМ ---
 @dp.callback_query(F.data.startswith("approve_") | F.data.startswith("reject_") | F.data.startswith("approve_report:") | F.data.startswith("reject_report:"))
@@ -202,4 +220,4 @@ async def main():
     )
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main()) 
