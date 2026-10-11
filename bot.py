@@ -32,6 +32,7 @@ def init_db():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
+            username TEXT,
             points INTEGER DEFAULT 0
         )
     """)
@@ -73,6 +74,7 @@ async def handle_report(message: types.Message):
 @app.post("/api/report")
 async def api_receive_report(
     user_id: int = Form(...),
+    username: str = Form("Эко Активист"),
     action_type: str = Form(...),
     points: int = Form(...),
     comment: str = Form(""),
@@ -86,6 +88,13 @@ async def api_receive_report(
 
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
+    
+    # Сохраняем или обновляем имя пользователя в таблице users заранее
+    cursor.execute("""
+        INSERT INTO users (user_id, username, points) VALUES (?, ?, 0)
+        ON CONFLICT(user_id) DO UPDATE SET username = ?
+    """, (user_id, username, username))
+
     cursor.execute(
         "INSERT INTO reports (user_id, action_type, points, comment, photo_path, status) VALUES (?, ?, ?, ?, ?, 'pending')",
         (user_id, action_type, points, comment, file_path)
@@ -112,20 +121,20 @@ async def api_get_user(user_id: int):
     conn.close()
     return {"points": points, "reports_count": reports_count}
 
-# --- НОВЫЙ ЭНДПОИНТ ДЛЯ ЛИДЕРБОРДА ---
+# --- ЭНДПОИНТ ДЛЯ ЛИДЕРБОРДА ---
 @app.get("/api/leaderboard")
 async def api_get_leaderboard():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("SELECT user_id, points FROM users ORDER BY points DESC LIMIT 10")
+    cursor.execute("SELECT user_id, username, points FROM users ORDER BY points DESC LIMIT 10")
     rows = cursor.fetchall()
     conn.close()
     
     leaderboard = []
-    for rank, (user_id, points) in enumerate(rows, start=1):
+    for rank, (user_id, username, points) in enumerate(rows, start=1):
         leaderboard.append({
             "rank": rank,
-            "user_id": user_id,
+            "username": username or f"Активист #{user_id}",
             "points": points
         })
     return leaderboard
@@ -220,4 +229,4 @@ async def main():
     )
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    asyncio.run(main())
