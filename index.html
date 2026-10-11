@@ -403,7 +403,7 @@
                         let medal = item.rank === 1 ? '🥇' : item.rank === 2 ? '🥈' : item.rank === 3 ? '🥉' : `${item.rank}.`;
                         html += `
                             <li style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #2a2a2a; align-items: center;">
-                                <span style="font-size: 15px;">${medal} Активист #${item.user_id}</span>
+                                <span style="font-size: 15px;">${medal} ${item.username}</span>
                                 <span style="color: #4CAF50; font-weight: bold; font-size: 15px;">${item.points} XP</span>
                             </li>
                         `;
@@ -617,9 +617,11 @@
             const points = selectedOption.getAttribute('data-points');
             const comment = commentInput.value.trim();
             const userId = tg?.initDataUnsafe?.user?.id || 123456;
+            const userName = tg?.initDataUnsafe?.user?.first_name || "Эко Активист";
 
             const formData = new FormData();
             formData.append('user_id', userId);
+            formData.append('username', userName); // Передаем имя пользователя на сервер
             formData.append('action_type', actionType);
             formData.append('points', points);
             formData.append('comment', comment);
@@ -660,4 +662,4 @@
         loadProfile();
     </script>
 </body>
-</html>  
+</html>
