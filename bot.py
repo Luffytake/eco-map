@@ -54,6 +54,9 @@ def init_db():
     conn.commit()
     conn.close()
 
+# ВАЖНО: Вызываем создание таблиц при старте приложения
+init_db()
+
 
 # --- ОБРАБОТКА /start ---
 @dp.message(CommandStart())
@@ -262,4 +265,4 @@ async def main():
     )
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main())  
