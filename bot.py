@@ -29,11 +29,23 @@ app.add_middleware(
 
 # Функция для создания базы данных и таблиц
 def init_db():
+    # Проверяем, существует ли старая база и есть ли в ней нужные колонки
+    if os.path.exists(DB_NAME):
+        try:
+            test_conn = sqlite3.connect(DB_NAME)
+            test_cursor = test_conn.cursor()
+            test_cursor.execute("SELECT points FROM reports LIMIT 1")
+            test_conn.close()
+        except sqlite3.OperationalError:
+            # Если колонки нет, значит база старая — удаляем её, чтобы создать правильно
+            test_conn.close()
+            os.remove(DB_NAME)
+            print("Старая повреждена или устарела, база удалена для пересоздания.")
+
     conn = sqlite3.connect(DB_NAME, timeout=20.0)
     cursor = conn.cursor()
     cursor.execute("PRAGMA journal_mode=WAL;")
     
-    # Создаем базовые таблицы, если их нет
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -52,28 +64,8 @@ def init_db():
             status TEXT DEFAULT 'pending'
         )
     """)
-    
-    # Принудительно добавляем каждую колонку, если таблица была создана ранее без них
-    columns_to_add = [
-        ("users", "username", "TEXT"),
-        ("users", "points", "INTEGER DEFAULT 0"),
-        ("reports", "user_id", "INTEGER"),
-        ("reports", "action_type", "TEXT"),
-        ("reports", "points", "INTEGER"),
-        ("reports", "comment", "TEXT"),
-        ("reports", "photo_path", "TEXT"),
-        ("reports", "status", "TEXT DEFAULT 'pending'")
-    ]
-    
-    for table, column, col_type in columns_to_add:
-        try:
-            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
-        except sqlite3.OperationalError:
-            pass # Колонка уже существует
-
     conn.commit()
     conn.close()
-
 
 # --- ОБРАБОТКА /start ---
 @dp.message(CommandStart())
