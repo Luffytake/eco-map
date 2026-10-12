@@ -33,7 +33,7 @@ def init_db():
     cursor = conn.cursor()
     cursor.execute("PRAGMA journal_mode=WAL;")
     
-    # Создаем таблицы, если их вообще нет
+    # Создаем базовые таблицы, если их нет
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -53,35 +53,28 @@ def init_db():
         )
     """)
     
-    # Безопасно добавляем колонки, если таблица уже существовала, но была старой
-    try:
-        cursor.execute("ALTER TABLE users ADD COLUMN username TEXT")
-    except sqlite3.OperationalError:
-        pass # Колонка уже существует
-
-    try:
-        cursor.execute("ALTER TABLE reports ADD COLUMN points INTEGER")
-    except sqlite3.OperationalError:
-        pass
-
-    try:
-        cursor.execute("ALTER TABLE reports ADD COLUMN comment TEXT")
-    except sqlite3.OperationalError:
-        pass
-
-    try:
-        cursor.execute("ALTER TABLE reports ADD COLUMN photo_path TEXT")
-    except sqlite3.OperationalError:
-        pass
-
-    try:
-        cursor.execute("ALTER TABLE reports ADD COLUMN status TEXT DEFAULT 'pending'")
-    except sqlite3.OperationalError:
-        pass
+    # Принудительно добавляем каждую колонку, если таблица была создана ранее без них
+    columns_to_add = [
+        ("users", "username", "TEXT"),
+        ("users", "points", "INTEGER DEFAULT 0"),
+        ("reports", "user_id", "INTEGER"),
+        ("reports", "action_type", "TEXT"),
+        ("reports", "points", "INTEGER"),
+        ("reports", "comment", "TEXT"),
+        ("reports", "photo_path", "TEXT"),
+        ("reports", "status", "TEXT DEFAULT 'pending'")
+    ]
+    
+    for table, column, col_type in columns_to_add:
+        try:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+        except sqlite3.OperationalError:
+            pass # Колонка уже существует
 
     conn.commit()
     conn.close()
-    
+
+
 # --- ОБРАБОТКА /start ---
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
