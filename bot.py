@@ -11,7 +11,7 @@ import uvicorn
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "1631981047"))  # ID администратора для модерации
-DB_NAME = "eco_khujand.db"
+DB_NAME = "eco_khujand_v2.db"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -29,19 +29,6 @@ app.add_middleware(
 
 # Функция для создания базы данных и таблиц
 def init_db():
-    # Проверяем, существует ли старая база и есть ли в ней нужные колонки
-    if os.path.exists(DB_NAME):
-        try:
-            test_conn = sqlite3.connect(DB_NAME)
-            test_cursor = test_conn.cursor()
-            test_cursor.execute("SELECT points FROM reports LIMIT 1")
-            test_conn.close()
-        except sqlite3.OperationalError:
-            # Если колонки нет, значит база старая — удаляем её, чтобы создать правильно
-            test_conn.close()
-            os.remove(DB_NAME)
-            print("Старая повреждена или устарела, база удалена для пересоздания.")
-
     conn = sqlite3.connect(DB_NAME, timeout=20.0)
     cursor = conn.cursor()
     cursor.execute("PRAGMA journal_mode=WAL;")
@@ -66,6 +53,7 @@ def init_db():
     """)
     conn.commit()
     conn.close()
+
 
 # --- ОБРАБОТКА /start ---
 @dp.message(CommandStart())
