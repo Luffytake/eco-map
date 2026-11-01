@@ -57,6 +57,20 @@ def init_db():
 
 init_db()
 
+# Запуск Telegram бота в фоновом режиме при старте FastAPI
+@app.on_event("startup")
+async def on_startup():
+    asyncio.create_task(start_telegram_bot())
+
+async def start_telegram_bot():
+    logging.basicConfig(level=logging.INFO)
+    await bot.delete_webhook(drop_pending_updates=True)
+    print("Telegram бот успешно запущен через фоновую задачу (Polling).")
+    try:
+        await dp.start_polling(bot)
+    except Exception as e:
+        print(f"Ошибка в работе polling: {e}")
+
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     welcome_text = (
@@ -195,7 +209,6 @@ async def api_get_stats():
         
     return {"total_users": total_users}
 
-# Ловим абсолютно любые нажатия кнопок для отладки
 @dp.callback_query(F.data)
 async def handle_report_moderation(callback: types.CallbackQuery):
     data = callback.data
@@ -274,21 +287,6 @@ async def handle_report_moderation(callback: types.CallbackQuery):
     finally:
         conn.close()
 
-async def main():
-    logging.basicConfig(level=logging.INFO)
-    # Принудительно сбрасываем вебхуки, чтобы polling работал стабильно
-    await bot.delete_webhook(drop_pending_updates=True)
-    print("Бот успешно запущен и готов принимать события через Polling.")
-    
-    port = int(os.getenv("PORT", 8080))
-    
-    config = uvicorn.Config(app, host="0.0.0.0", port=port, log_level="info")
-    server = uvicorn.Server(config)
-    
-    await asyncio.gather(
-        dp.start_polling(bot),
-        server.serve()
-    )
-
 if __name__ == "__main__":
-    asyncio.run(main())
+    port = int(os.getenv("PORT", 8080))
+    uvicorn.run(app, host="0.0.0.0", port=port)
