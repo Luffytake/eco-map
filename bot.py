@@ -5,18 +5,17 @@ import sqlite3
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, UploadFile, Optional
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0")
-ADMIN_ID = int(os.getenv("ADMIN_ID", "1631981047"))  # ID администратора для модерации
+ADMIN_ID = int(os.getenv("ADMIN_ID", "1631981047"))
 DB_NAME = "eco_khujand_v2.db"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Инициализация FastAPI для приема запросов из мини-приложения
 app = FastAPI()
 
 app.add_middleware(
@@ -27,7 +26,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Функция для создания базы данных и таблиц
 def init_db():
     conn = sqlite3.connect(DB_NAME, timeout=20.0)
     cursor = conn.cursor()
@@ -48,17 +46,16 @@ def init_db():
             points INTEGER,
             comment TEXT,
             photo_path TEXT,
+            latitude REAL,
+            longitude REAL,
             status TEXT DEFAULT 'pending'
         )
     """)
     conn.commit()
     conn.close()
 
-# ВАЖНО: Вызываем создание таблиц при старте приложения
 init_db()
 
-
-# --- ОБРАБОТКА /start ---
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     welcome_text = (
@@ -71,12 +68,6 @@ async def cmd_start(message: types.Message):
     )
     await message.answer(welcome_text, parse_mode="HTML")
 
-@dp.message(F.text == "Сообщить о проблеме ⚠️")
-async def handle_report(message: types.Message):
-    await message.answer("Пришлите фото переполненного бака или геолокацию, чтобы мы передали информацию в службы очистки!")
-
-# --- API ДЛЯ ВЕБ-ПРИЛОЖЕНИЯ (Фронтенда) ---
-
 @app.post("/api/report")
 async def api_receive_report(
     user_id: int = Form(...),
@@ -84,6 +75,8 @@ async def api_receive_report(
     action_type: str = Form(...),
     points: int = Form(...),
     comment: str = Form(""),
+    latitude: Optional[float] = Form(None),
+    longitude: Optional[float] = Form(None),
     photo: UploadFile = File(...)
 ):
     os.makedirs("uploads", exist_ok=True)
@@ -92,25 +85,28 @@ async def api_receive_report(
     with open(file_path, "wb") as buffer:
         buffer.write(await photo.read())
 
+    # Нормализуем юзернейм для базы (чтобы всегда был с @ если это ник)
+    clean_username = username.strip()
+    if clean_username and not clean_username.startswith("@") and not clean_username.startswith("Активист"):
+        clean_username = f"@{clean_username}"
+
     conn = sqlite3.connect(DB_NAME, timeout=20.0)
     cursor = conn.cursor()
     try:
-        # Сохраняем или обновляем имя пользователя в таблице users
         cursor.execute("""
             INSERT INTO users (user_id, username, points) VALUES (?, ?, 0)
             ON CONFLICT(user_id) DO UPDATE SET username = ?
-        """, (user_id, username, username))
+        """, (user_id, clean_username, clean_username))
 
         cursor.execute(
-            "INSERT INTO reports (user_id, action_type, points, comment, photo_path, status) VALUES (?, ?, ?, ?, ?, 'pending')",
-            (user_id, action_type, points, comment, file_path)
+            "INSERT INTO reports (user_id, action_type, points, comment, photo_path, latitude, longitude, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')",
+            (user_id, action_type, points, comment, file_path, latitude, longitude)
         )
         report_id = cursor.lastrowid
         conn.commit()
     finally:
         conn.close()
 
-    # Отправка уведомления администратору для модерации
     try:
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
@@ -119,12 +115,15 @@ async def api_receive_report(
             ]
         ])
         
+        geo_text = f"\n📍 <b>Координаты:</b> {latitude}, {longitude}" if latitude and longitude else "\n📍 <b>Координаты:</b> Не указаны"
+        
         caption_text = (
             f"📥 <b>Новый эко-отчёт #{report_id}</b>\n\n"
-            f"👤 <b>Пользователь:</b> {username} (ID: <code>{user_id}</code>)\n"
+            f"👤 <b>Пользователь:</b> {clean_username} (ID: <code>{user_id}</code>)\n"
             f"📌 <b>Действие:</b> {action_type}\n"
             f"🏅 <b>Баллы:</b> +{points}\n"
             f"💬 <b>Комментарий:</b> {comment or 'Отсутствует'}"
+            f"{geo_text}"
         )
         
         photo_file = FSInputFile(file_path)
@@ -157,7 +156,6 @@ async def api_get_user(user_id: int):
 
     return {"points": points, "reports_count": reports_count}
 
-# --- ЭНДПОИНТ ДЛЯ ЛИДЕРБОРДА ---
 @app.get("/api/leaderboard")
 async def api_get_leaderboard():
     conn = sqlite3.connect(DB_NAME, timeout=20.0)
@@ -170,7 +168,7 @@ async def api_get_leaderboard():
     
     leaderboard = []
     for rank, (user_id, username, points) in enumerate(rows, start=1):
-        if username and not username.startswith("@"):
+        if username and not username.startswith("@") and not username.startswith("Активист"):
             display_name = f"@{username}"
         elif username:
             display_name = username
@@ -184,7 +182,6 @@ async def api_get_leaderboard():
         })
     return leaderboard
 
-# --- ЭНДПОИНТ ДЛЯ СТАТИСТИКИ ПОЛЬЗОВАТЕЛЕЙ ---
 @app.get("/api/stats")
 async def api_get_stats():
     conn = sqlite3.connect(DB_NAME, timeout=20.0)
@@ -198,8 +195,6 @@ async def api_get_stats():
         
     return {"total_users": total_users}
 
-
-# --- МОДЕРАЦИЯ ОТЧЕТОВ АДМИНОМ ---
 @dp.callback_query(F.data.startswith("approve_") | F.data.startswith("reject_") | F.data.startswith("approve_report:") | F.data.startswith("reject_report:"))
 async def handle_report_moderation(callback: types.CallbackQuery):
     data = callback.data
@@ -256,7 +251,7 @@ async def handle_report_moderation(callback: types.CallbackQuery):
             conn.commit()
 
             new_caption = (callback.message.caption or "") + "\n\n<b>❌ ОТКЛОНЕНО.</b>"
-            await callback.message.edit_caption(caption=new_caption, parse_mode="HTML", reply_markup=None)
+            await callback.message.edit_caption(caption=new_caption, parse_mode="HTML", reply_package=None, reply_markup=None)
             await callback.answer("❌ Отчёт отклонён.")
 
             try:
@@ -269,7 +264,6 @@ async def handle_report_moderation(callback: types.CallbackQuery):
                 print(f"Не удалось отправить сообщение пользователю {user_id}: {e}")
     finally:
         conn.close()
-
 
 async def main():
     logging.basicConfig(level=logging.INFO)
@@ -286,4 +280,4 @@ async def main():
     )
 
 if __name__ == "__main__":
-    asyncio.run(main())    
+    asyncio.run(main())
