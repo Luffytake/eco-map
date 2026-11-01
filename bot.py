@@ -86,7 +86,6 @@ async def api_receive_report(
     with open(file_path, "wb") as buffer:
         buffer.write(await photo.read())
 
-    # Нормализуем юзернейм для базы (чтобы всегда был с @ если это ник)
     clean_username = username.strip()
     if clean_username and not clean_username.startswith("@") and not clean_username.startswith("Активист"):
         clean_username = f"@{clean_username}"
@@ -196,9 +195,11 @@ async def api_get_stats():
         
     return {"total_users": total_users}
 
-@dp.callback_query(F.data.startswith("approve_") | F.data.startswith("reject_"))
+# Ловим абсолютно любые нажатия кнопок для отладки
+@dp.callback_query(F.data)
 async def handle_report_moderation(callback: types.CallbackQuery):
     data = callback.data
+    print(f"DEBUG: Получен callback_query с данными: {data}")
     
     try:
         if ":" in data:
@@ -211,6 +212,7 @@ async def handle_report_moderation(callback: types.CallbackQuery):
             
         report_id = int(report_id_str)
     except Exception as e:
+        print(f"DEBUG: Ошибка парсинга callback_data '{data}': {e}")
         await callback.answer(f"❌ Ошибка обработки: {e}", show_alert=True)
         return
 
@@ -222,6 +224,7 @@ async def handle_report_moderation(callback: types.CallbackQuery):
         report = cursor.fetchone()
 
         if not report:
+            print(f"DEBUG: Отчёт #{report_id} не найден в таблице reports!")
             await callback.answer("❌ Отчёт не найден в базе данных!", show_alert=True)
             return
 
@@ -273,7 +276,9 @@ async def handle_report_moderation(callback: types.CallbackQuery):
 
 async def main():
     logging.basicConfig(level=logging.INFO)
+    # Принудительно сбрасываем вебхуки, чтобы polling работал стабильно
     await bot.delete_webhook(drop_pending_updates=True)
+    print("Бот успешно запущен и готов принимать события через Polling.")
     
     port = int(os.getenv("PORT", 8080))
     
