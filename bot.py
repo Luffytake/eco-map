@@ -5,7 +5,8 @@ import sqlite3
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
-from fastapi import FastAPI, File, Form, UploadFile, Optional
+from typing import Optional
+from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
