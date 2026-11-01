@@ -10,7 +10,7 @@ from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8701787724:AAHSI0Vw_v6oG3ptuxy2EKWOooKfV6Q-qx0")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8701787724:AAHvpCOAv9bSShzTxciRlRI5jFCqznIVcPc")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "1631981047"))
 DB_NAME = "eco_khujand_v2.db"
 
