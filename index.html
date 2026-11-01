@@ -86,6 +86,21 @@
             font-weight: bold;
             box-shadow: 0 2px 6px rgba(0,0,0,0.5);
         }
+        .map-legend {
+            position: absolute;
+            top: 10px;
+            right: 105px;
+            z-index: 1000;
+            background: #2a2a2a;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+            line-height: 1.4;
+        }
 
         /* --- ВКЛАДКА 2: ФОРМА ОТЧЕТА --- */
         .container {
@@ -264,6 +279,7 @@
     <div class="content-area">
         <!-- Вкладка 1: Карта -->
         <div id="tab-map" class="tab-content active">
+            <div class="map-legend">🔵 — Урна<br>🟢 — Мусорные баки</div>
             <button class="locate-btn" onclick="requestLocation()">📍 Где я?</button>
             <div id="map"></div>
         </div>
@@ -662,4 +678,4 @@
         loadProfile();
     </script>
 </body>
-</html>
+</html>  
