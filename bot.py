@@ -170,7 +170,6 @@ async def api_get_leaderboard():
     
     leaderboard = []
     for rank, (user_id, username, points) in enumerate(rows, start=1):
-        # Красиво форматируем юзернейм (добавляем '@', если его нет)
         if username and not username.startswith("@"):
             display_name = f"@{username}"
         elif username:
@@ -257,7 +256,7 @@ async def handle_report_moderation(callback: types.CallbackQuery):
             conn.commit()
 
             new_caption = (callback.message.caption or "") + "\n\n<b>❌ ОТКЛОНЕНО.</b>"
-            await callback.message.edit_app_caption = callback.message.edit_caption(caption=new_caption, parse_mode="HTML", reply_markup=None)
+            await callback.message.edit_caption(caption=new_caption, parse_mode="HTML", reply_markup=None)
             await callback.answer("❌ Отчёт отклонён.")
 
             try:
@@ -287,4 +286,4 @@ async def main():
     )
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main())    
