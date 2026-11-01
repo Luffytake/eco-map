@@ -196,18 +196,23 @@ async def api_get_stats():
         
     return {"total_users": total_users}
 
-@dp.callback_query(F.data.startswith("approve_") | F.data.startswith("reject_") | F.data.startswith("approve_report:") | F.data.startswith("reject_report:"))
+@dp.callback_query(F.data.startswith("approve_") | F.data.startswith("reject_"))
 async def handle_report_moderation(callback: types.CallbackQuery):
     data = callback.data
     
-    if ":" in data:
-        action, report_id = data.split(":")
-    else:
-        parts = data.split("_")
-        action = parts[0]
-        report_id = parts[1]
-        
-    report_id = int(report_id)
+    try:
+        if ":" in data:
+            prefix, report_id_str = data.split(":")
+            action = "approve" if "approve" in prefix else "reject"
+        else:
+            parts = data.split("_")
+            action = parts[0]
+            report_id_str = parts[1]
+            
+        report_id = int(report_id_str)
+    except Exception as e:
+        await callback.answer(f"❌ Ошибка обработки: {e}", show_alert=True)
+        return
 
     conn = sqlite3.connect(DB_NAME, timeout=20.0)
     cursor = conn.cursor()
@@ -226,7 +231,7 @@ async def handle_report_moderation(callback: types.CallbackQuery):
             await callback.answer(f"⚠️ Этот отчёт уже обработан (статус: {status})", show_alert=True)
             return
 
-        if action in ["approve", "approve_report"]:
+        if action == "approve":
             cursor.execute("UPDATE reports SET status = 'approved' WHERE id = ?", (report_id,))
             cursor.execute("""
                 INSERT INTO users (user_id, points) VALUES (?, ?)
@@ -247,12 +252,12 @@ async def handle_report_moderation(callback: types.CallbackQuery):
             except Exception as e:
                 print(f"Не удалось отправить сообщение пользователю {user_id}: {e}")
 
-        elif action in ["reject", "reject_report"]:
+        elif action == "reject":
             cursor.execute("UPDATE reports SET status = 'rejected' WHERE id = ?", (report_id,))
             conn.commit()
 
             new_caption = (callback.message.caption or "") + "\n\n<b>❌ ОТКЛОНЕНО.</b>"
-            await callback.message.edit_caption(caption=new_caption, parse_mode="HTML", reply_package=None, reply_markup=None)
+            await callback.message.edit_caption(caption=new_caption, parse_mode="HTML", reply_markup=None)
             await callback.answer("❌ Отчёт отклонён.")
 
             try:
