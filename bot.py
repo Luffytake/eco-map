@@ -170,12 +170,34 @@ async def api_get_leaderboard():
     
     leaderboard = []
     for rank, (user_id, username, points) in enumerate(rows, start=1):
+        # Красиво форматируем юзернейм (добавляем '@', если его нет)
+        if username and not username.startswith("@"):
+            display_name = f"@{username}"
+        elif username:
+            display_name = username
+        else:
+            display_name = f"Активист #{user_id}"
+
         leaderboard.append({
             "rank": rank,
-            "username": username or f"Активист #{user_id}",
+            "username": display_name,
             "points": points
         })
     return leaderboard
+
+# --- ЭНДПОИНТ ДЛЯ СТАТИСТИКИ ПОЛЬЗОВАТЕЛЕЙ ---
+@app.get("/api/stats")
+async def api_get_stats():
+    conn = sqlite3.connect(DB_NAME, timeout=20.0)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT COUNT(*) FROM users")
+        row = cursor.fetchone()
+        total_users = row[0] if row else 0
+    finally:
+        conn.close()
+        
+    return {"total_users": total_users}
 
 
 # --- МОДЕРАЦИЯ ОТЧЕТОВ АДМИНОМ ---
@@ -235,7 +257,7 @@ async def handle_report_moderation(callback: types.CallbackQuery):
             conn.commit()
 
             new_caption = (callback.message.caption or "") + "\n\n<b>❌ ОТКЛОНЕНО.</b>"
-            await callback.message.edit_caption(caption=new_caption, parse_mode="HTML", reply_markup=None)
+            await callback.message.edit_app_caption = callback.message.edit_caption(caption=new_caption, parse_mode="HTML", reply_markup=None)
             await callback.answer("❌ Отчёт отклонён.")
 
             try:
@@ -265,4 +287,4 @@ async def main():
     )
 
 if __name__ == "__main__":
-    asyncio.run(main())  
+    asyncio.run(main())
