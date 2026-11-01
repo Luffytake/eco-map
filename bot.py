@@ -57,16 +57,21 @@ def init_db():
 
 init_db()
 
-# Запуск Telegram бота в фоновом режиме при старте FastAPI
+# Защитный флаг, чтобы бот не запускался дважды при старте
+_bot_started = False
+
 @app.on_event("startup")
 async def on_startup():
-    asyncio.create_task(start_telegram_bot())
+    global _bot_started
+    if not _bot_started:
+        _bot_started = True
+        asyncio.create_task(start_telegram_bot())
 
 async def start_telegram_bot():
     logging.basicConfig(level=logging.INFO)
-    await bot.delete_webhook(drop_pending_updates=True)
-    print("Telegram бот успешно запущен через фоновую задачу (Polling).")
     try:
+        await bot.delete_webhook(drop_pending_updates=True)
+        print("Telegram бот успешно запущен через фоновую задачу (Polling).")
         await dp.start_polling(bot)
     except Exception as e:
         print(f"Ошибка в работе polling: {e}")
