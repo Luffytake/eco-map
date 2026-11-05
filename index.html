@@ -516,6 +516,17 @@
             });
         });
 
+        // Район: 19 мкр (круг радиусом 450 м, без подписи)
+        L.circle([40.298897, 69.610336], {
+            radius: 450,
+            color: "#800020",
+            weight: 1,
+            opacity: 0.4,
+            fillColor: "#800020",
+            fillOpacity: 0.15,
+            interactive: false
+        }).addTo(map);
+
         let userLocation = null;
         let userMarker = null;
         let routingControl = null;
