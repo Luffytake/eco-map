@@ -11,8 +11,8 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Leaflet Routing Machine CSS & JS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
-    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 
     <style>
         * {
@@ -28,6 +28,7 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
+            height: 100dvh;
             overflow: hidden;
         }
         
@@ -350,16 +351,16 @@
 
     <!-- Нижняя панель навигации -->
     <div class="nav-bar">
-        <button class="nav-item active" onclick="switchTab('map')">
+        <button class="nav-item active" data-tab="map" onclick="switchTab('map')">
             <span>🗺️</span> Карта
         </button>
-        <button class="nav-item" onclick="switchTab('report')">
+        <button class="nav-item" data-tab="report" onclick="switchTab('report')">
             <span>➕</span> Отчёт
         </button>
-        <button class="nav-item" onclick="switchTab('profile')">
+        <button class="nav-item" data-tab="profile" onclick="switchTab('profile')">
             <span>👤</span> Профиль
         </button>
-        <button class="nav-item" onclick="switchTab('leaderboard')">
+        <button class="nav-item" data-tab="leaderboard" onclick="switchTab('leaderboard')">
             <span>🏆</span> Топ
         </button>
     </div>
@@ -367,67 +368,70 @@
     <script>
         const tg = window.Telegram?.WebApp;
         if (tg) {
-            tg.expand();
             tg.ready();
+            tg.expand();
         }
 
         const SERVER_URL = "https://eco-map-production-fe83.up.railway.app";
 
+        const tgUser = tg?.initDataUnsafe?.user || null;
+        const initData = tg?.initData || "";
+        const userName = tgUser?.username ? `@${tgUser.username}` : (tgUser?.first_name || "Эко Активист");
+
+        const RANKS = [
+            { name: "Эко-Новичок", max: 100 },
+            { name: "Эко-Защитник", max: 300 },
+            { name: "Эко-Герой", max: 500 }
+        ];
+
+        // ---------- утилиты
+        function esc(s) {
+            return String(s).replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[c]));
+        }
+
+        function notify(msg) {
+            if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.2')) tg.showAlert(msg);
+            else alert(msg);
+        }
+
+        // ---------- вкладки
         function switchTab(tabName) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
 
             document.getElementById(`tab-${tabName}`).classList.add('active');
-            
-            const targetBtn = Array.from(document.querySelectorAll('.nav-item')).find(btn => 
-                btn.getAttribute('onclick')?.includes(tabName)
-            );
-            if (targetBtn) {
-                targetBtn.classList.add('active');
-            }
+            document.querySelector(`.nav-item[data-tab="${tabName}"]`)?.classList.add('active');
 
-            if (tabName === 'map') {
-                setTimeout(() => map.invalidateSize(), 100);
-            }
-            if (tabName === 'profile') {
-                loadProfile();
-            }
-            if (tabName === 'leaderboard') {
-                loadLeaderboard();
-            }
+            if (tabName === 'map') setTimeout(() => map.invalidateSize(), 100);
+            if (tabName === 'profile') loadProfile();
+            if (tabName === 'leaderboard') loadLeaderboard();
         }
 
+        // ---------- рейтинг
         async function loadLeaderboard() {
             const container = document.getElementById('leaderboard-list');
             try {
                 const res = await fetch(`${SERVER_URL}/api/leaderboard`);
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.length === 0) {
-                        container.innerHTML = '<p style="color: #aaa; text-align: center;">Пока нет участников</p>';
-                        return;
-                    }
-                    
-                    let html = '<ul style="list-style: none; padding: 0;">';
-                    data.forEach(item => {
-                        let medal = item.rank === 1 ? '🥇' : item.rank === 2 ? '🥈' : item.rank === 3 ? '🥉' : `${item.rank}.`;
-                        html += `
-                            <li style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #2a2a2a; align-items: center;">
-                                <span style="font-size: 15px;">${medal} ${item.username}</span>
-                                <span style="color: #4CAF50; font-weight: bold; font-size: 15px;">${item.points} XP</span>
-                            </li>
-                        `;
-                    });
-                    html += '</ul>';
-                    container.innerHTML = html;
-                } else {
-                    container.innerHTML = '<p style="color: #ff5252; text-align: center;">Не удалось загрузить топ</p>';
+                if (!res.ok) throw new Error(res.status);
+                const data = await res.json();
+                if (data.length === 0) {
+                    container.innerHTML = '<p style="color: #aaa; text-align: center;">Пока нет участников</p>';
+                    return;
                 }
+                const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
+                container.innerHTML = '<ul style="list-style: none; padding: 0;">' + data.map(item => `
+                    <li style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #2a2a2a; align-items: center;">
+                        <span style="font-size: 15px;">${medals[item.rank] || item.rank + '.'} ${esc(item.username)}</span>
+                        <span style="color: #4CAF50; font-weight: bold; font-size: 15px;">${Number(item.points)} XP</span>
+                    </li>`).join('') + '</ul>';
             } catch (e) {
-                container.innerHTML = '<p style="color: #ff5252; text-align: center;">Ошибка сети</p>';
+                container.innerHTML = '<p style="color: #ff5252; text-align: center;">Не удалось загрузить топ</p>';
             }
         }
 
+        // ---------- карта
         const map = L.map('map').setView([40.2950, 69.6100], 13);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -435,82 +439,122 @@
             attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        const containerStyle = {
-            radius: 8,
-            fillColor: "#4CAF50",
-            color: "#ffffff",
-            weight: 1.5,
-            opacity: 1,
-            fillOpacity: 0.8
+        const baseStyle = { color: "#ffffff", weight: 1.5, opacity: 1, fillOpacity: 0.8 };
+        const TYPES = {
+            c: { title: 'Мусорные баки', style: { ...baseStyle, radius: 8, fillColor: "#4CAF50" } },
+            u: { title: 'Уличная урна', style: { ...baseStyle, radius: 6, fillColor: "#2196F3" } }
         };
 
-        const urnStyle = {
-            radius: 6,
-            fillColor: "#2196F3",
-            color: "#ffffff",
-            weight: 1.5,
-            opacity: 1,
-            fillOpacity: 0.8
-        };
+        // [широта, долгота, тип (c — баки, u — урна), примечание]
+        const POINTS = [
+            [40.299929, 69.620699, 'c', 'Статус: Чисто'],
+            [40.299659, 69.620296, 'u', 'Рядом со скамейкой'],
+            [40.295390, 69.619887, 'c', 'Статус: Чисто'],
+            [40.299663, 69.617160, 'c', 'Статус: Чисто'],
+            [40.297905, 69.615246, 'u', 'Рядом со светофором'],
+            [40.290171, 69.591860, 'c', 'Статус: Чисто'],
+            [40.294807, 69.594147, 'c', 'Статус: Чисто'],
+            [40.295446, 69.590084, 'c', 'Статус: Чисто'],
+            [40.292341, 69.592556, 'c', 'Статус: Чисто'],
+            [40.294797, 69.594224, 'c', 'Статус: Чисто'],
+            [40.295714, 69.592587, 'c', 'Статус: Чисто'],
+            [40.291217, 69.595520, 'c', 'Статус: Чисто'],
+            [40.298079, 69.598126, 'c', 'Статус: Чисто'],
+            [40.298875, 69.600408, 'u', ''],
+            [40.299935, 69.603779, 'u', ''],
+            [40.293488, 69.591899, 'c', 'Статус: Чисто'],
+            [40.293580, 69.597363, 'u', ''],
+            [40.293501, 69.597172, 'u', ''],
+            [40.291407, 69.596333, 'u', ''],
+            [40.290115, 69.591836, 'c', 'Статус: Чисто'],
+            [40.290301, 69.592194, 'u', ''],
+            [40.296212, 69.610370, 'u', ''],
+            [40.297263, 69.613332, 'u', ''],
+            [40.297303, 69.613455, 'u', ''],
+            [40.297960, 69.615260, 'u', ''],
+            [40.297091, 69.615816, 'u', ''],
+            [40.296065, 69.616349, 'c', ''],
+            [40.295661, 69.616685, 'u', ''],
+            [40.294912, 69.617156, 'u', ''],
+            [40.294285, 69.617172, 'u', ''],
+            [40.294182, 69.617235, 'u', ''],
+            [40.291248, 69.619102, 'u', ''],
+            [40.287761, 69.618199, 'u', ''],
+            [40.285293, 69.618650, 'u', ''],
+            [40.285131, 69.618612, 'u', ''],
+            [40.285541, 69.620910, 'u', ''],
+            [40.285599, 69.621183, 'u', ''],
+            [40.284216, 69.616086, 'u', ''],
+            [40.300167, 69.632497, 'c', 'Статус: Чисто'],
+            [40.300200, 69.603449, 'u', ''],
+            [40.285280, 69.623239, 'c', 'Статус: Чисто'],
+            [40.285196, 69.622087, 'u', ''],
+            [40.285141, 69.621830, 'u', ''],
+            [40.276337, 69.609382, 'c', 'Статус: Чисто'],
+            [40.278314, 69.613180, 'c', 'Статус: Чисто'],
+            [40.277596, 69.611914, 'u', ''],
+            [40.295089, 69.619780, 'u', ''],
+        ];
+
+        POINTS.forEach(([lat, lng, type, note]) => {
+            const t = TYPES[type];
+            L.circleMarker([lat, lng], t.style).addTo(map).bindPopup(() => {
+                const el = document.createElement('div');
+                el.innerHTML = `<b>${t.title}</b>` + (note ? `<br>${note}` : '') + '<br>';
+                const btn = document.createElement('button');
+                btn.className = 'route-btn';
+                btn.textContent = 'Маршрут 🚶‍♂️';
+                btn.addEventListener('click', () => buildRoute(lat, lng));
+                el.appendChild(btn);
+                return el;
+            });
+        });
 
         let userLocation = null;
+        let userMarker = null;
         let routingControl = null;
 
         function requestLocation() {
             if (!navigator.geolocation) {
-                alert("Геолокация не поддерживается вашим устройством/браузером.");
+                notify("Геолокация не поддерживается вашим устройством/браузером.");
                 return;
             }
-
             navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    userLocation = [position.coords.latitude, position.coords.longitude];
+                (pos) => {
+                    userLocation = [pos.coords.latitude, pos.coords.longitude];
                     map.setView(userLocation, 16);
-
-                    if (window.userMarker) {
-                        window.userMarker.setLatLng(userLocation);
+                    if (userMarker) {
+                        userMarker.setLatLng(userLocation);
                     } else {
-                        window.userMarker = L.circleMarker(userLocation, {
-                            radius: 8,
-                            fillColor: "#E91E63",
-                            color: "#ffffff",
-                            weight: 2,
-                            opacity: 1,
-                            fillOpacity: 0.9
-                        }).addTo(map).bindPopup("<b>Вы здесь</b>").openPopup();
+                        userMarker = L.circleMarker(userLocation, {
+                            radius: 8, fillColor: "#E91E63", color: "#ffffff",
+                            weight: 2, opacity: 1, fillOpacity: 0.9
+                        }).addTo(map).bindPopup("<b>Вы здесь</b>");
                     }
+                    userMarker.openPopup();
                 },
-                (error) => {
-                    alert("Не удалось определить местоположение.");
-                },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 0
-                }
+                () => notify("Не удалось определить местоположение."),
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
             );
         }
 
         function buildRoute(destLat, destLng) {
             if (!userLocation) {
-                alert("Сначала укажите ваше местоположение (кнопка 📍 Где я?)");
+                notify("Сначала укажите ваше местоположение (кнопка 📍 Где я?)");
                 requestLocation();
                 return;
             }
-
-            if (routingControl) {
-                map.removeControl(routingControl);
-            }
+            map.closePopup();
+            if (routingControl) map.removeControl(routingControl);
 
             routingControl = L.Routing.control({
-                waypoints: [
-                    L.latLng(userLocation[0], userLocation[1]),
-                    L.latLng(destLat, destLng)
-                ],
-                router: L.Routing.osrmv1({ profile: 'foot' }),
-                lineOptions: {
-                    styles: [{ color: '#4CAF50', opacity: 0.8, weight: 6 }]
-                },
+                waypoints: [L.latLng(userLocation[0], userLocation[1]), L.latLng(destLat, destLng)],
+                // демо-сервер project-osrm.org умеет только авто, пешеходный маршрут — на сервере OSM
+                router: L.Routing.osrmv1({
+                    serviceUrl: 'https://routing.openstreetmap.de/routed-foot/route/v1',
+                    profile: 'foot'
+                }),
+                lineOptions: { styles: [{ color: '#4CAF50', opacity: 0.8, weight: 6 }] },
                 addWaypoints: false,
                 draggableWaypoints: false,
                 fitSelectedRoutes: true,
@@ -518,91 +562,60 @@
             }).addTo(map);
         }
 
-        // Точки карты
-        L.circleMarker([40.299929, 69.620699], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.299929, 69.620699)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.299659, 69.620296], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br>Рядом со скамейкой<br><button class='route-btn' onclick='buildRoute(40.299659, 69.620296)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.295390, 69.619887], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.295390, 69.619887)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.299663, 69.617160], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.299663, 69.617160)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.297905, 69.615246], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br>Рядом со светофором<br><button class='route-btn' onclick='buildRoute(40.297905, 69.615246)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.290171, 69.591860], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.290171, 69.591860)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.294807, 69.594147], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.294807, 69.594147)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.295446, 69.590084], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.295446, 69.590084)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.292341, 69.592556], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.292341, 69.592556)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.294797, 69.594224], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.294797, 69.594224)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.295714, 69.592587], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.295714, 69.592587)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.291217, 69.595520], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.291217, 69.595520)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.298079, 69.598126], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.298079, 69.598126)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.298875, 69.600408], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.298875, 69.600408)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.299935, 69.603779], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.299935, 69.603779)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.293488, 69.591899], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.293488, 69.591899)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.293580, 69.597363], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.293580, 69.597363)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.293501, 69.597172], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.293501, 69.597172)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.291407, 69.596333], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.291407, 69.596333)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.290115, 69.591836], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.290115, 69.591836)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.290301, 69.592194], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.290301, 69.592194)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.296212, 69.610370], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.296212, 69.610370)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.297263, 69.613332], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.297263, 69.613332)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.297303, 69.613455], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.297303, 69.613455)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.297960, 69.615260], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.297960, 69.615260)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.297091, 69.615816], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.297091, 69.615816)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.296065, 69.616349], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br><button class='route-btn' onclick='buildRoute(40.296065, 69.616349)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.295661, 69.616685], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.295661, 69.616685)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.294912, 69.617156], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.294912, 69.617156)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.294285, 69.617172], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.294285, 69.617172)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.294182, 69.617235], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.294182, 69.617235)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.291248, 69.619102], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.291248, 69.619102)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.287761, 69.618199], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.287761, 69.618199)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.285293, 69.618650], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.285293, 69.618650)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.285131, 69.618612], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.285131, 69.618612)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.285541, 69.620910], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.285541, 69.620910)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.285599, 69.621183], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.285599, 69.621183)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.284216, 69.616086], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.284216, 69.616086)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.300167, 69.632497], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.300167, 69.632497)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.300200, 69.603449], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.300200, 69.603449)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.285280, 69.623239], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.285280, 69.623239)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.285196, 69.622087], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.285196, 69.622087)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.285141, 69.621830], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.285141, 69.621830)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.276337, 69.609382], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.276337, 69.609382)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.278314, 69.613180], containerStyle).addTo(map).bindPopup("<b>Мусорные баки</b><br>Статус: Чисто<br><button class='route-btn' onclick='buildRoute(40.278314, 69.613180)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.277596, 69.611914], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.277596, 69.611914)'>Маршрут 🚶‍♂️</button>");
-        L.circleMarker([40.295089, 69.619780], urnStyle).addTo(map).bindPopup("<b>Уличная урна</b><br><button class='route-btn' onclick='buildRoute(40.295089, 69.619780)'>Маршрут 🚶‍♂️</button>");
-
+        // ---------- профиль
         async function loadProfile() {
-            const user = tg?.initDataUnsafe?.user;
-            const userId = user?.id || 123456;
-            const userName = user?.username ? `@${user.username}` : (user?.first_name || "Эко Активист");
-            
             document.getElementById('user-name').innerText = userName;
 
-            if (user?.photo_url) {
-                document.getElementById('avatarBox').innerHTML = `<img src="${user.photo_url}" class="avatar-img" alt="Avatar">`;
+            const avatar = document.getElementById('avatarBox');
+            if (tgUser?.photo_url) {
+                const img = document.createElement('img');
+                img.src = tgUser.photo_url;
+                img.className = 'avatar-img';
+                img.alt = 'Avatar';
+                avatar.replaceChildren(img);
             } else {
-                document.getElementById('avatarBox').innerText = userName.charAt(0).toUpperCase();
+                avatar.innerText = userName.replace('@', '').charAt(0).toUpperCase();
             }
 
+            if (!tgUser) return; // открыто не из Telegram
+
             try {
-                const res = await fetch(`${SERVER_URL}/api/user/${userId}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    const points = data.points || 0;
-                    const reports = data.reports_count || 0;
+                const res = await fetch(`${SERVER_URL}/api/user/${tgUser.id}`);
+                if (!res.ok) throw new Error(res.status);
+                const data = await res.json();
+                const points = data.points || 0;
 
-                    document.getElementById('user-points').innerText = points;
-                    document.getElementById('reports-count').innerText = reports;
+                const rank = RANKS.find(r => points < r.max) || RANKS[RANKS.length - 1];
+                const pct = Math.min(100, Math.round((points / rank.max) * 100));
 
-                    let rankName = "Эко-Новичок";
-                    let maxPoints = 100;
-                    if (points >= 100 && points < 300) { rankName = "Эко-Защитник"; maxPoints = 300; }
-                    else if (points >= 300) { rankName = "Эко-Герой"; maxPoints = 500; }
-
-                    const progressPct = Math.min(100, Math.round((points / maxPoints) * 100));
-                    document.getElementById('rank-title').innerText = rankName;
-                    document.getElementById('rank-progress-text').innerText = `${points} / ${maxPoints} XP`;
-                    document.getElementById('rank-bar').style.width = `${progressPct}%`;
-                }
+                document.getElementById('user-points').innerText = points;
+                document.getElementById('reports-count').innerText = data.reports_count || 0;
+                document.getElementById('rank-title').innerText = rank.name;
+                document.getElementById('rank-progress-text').innerText = `${points} / ${rank.max} XP`;
+                document.getElementById('rank-bar').style.width = `${pct}%`;
             } catch (e) {
                 console.error("Ошибка загрузки профиля:", e);
             }
+        }
+
+        // ---------- отчёт
+        // Уменьшаем фото до 1600px: быстрее грузится и проходит лимит сервера (10 МБ)
+        function compressImage(file, maxSide = 1600, quality = 0.8) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                const url = URL.createObjectURL(file);
+                img.onload = () => {
+                    URL.revokeObjectURL(url);
+                    const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.round(img.width * scale);
+                    canvas.height = Math.round(img.height * scale);
+                    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                    canvas.toBlob(b => resolve(b || file), 'image/jpeg', quality);
+                };
+                img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+                img.src = url;
+            });
         }
 
         async function sendReport() {
@@ -611,52 +624,48 @@
             const commentInput = document.getElementById('report-comment');
             const submitBtn = document.getElementById('submit-btn');
 
-            if (!fileInput.files[0]) {
-                alert("Пожалуйста, прикрепите фотографию!");
+            if (!initData) {
+                notify("Откройте приложение через Telegram-бота.");
                 return;
             }
-
-            const selectedOption = actionSelect.options[actionSelect.selectedIndex];
-            const actionType = selectedOption.value;
-            const points = selectedOption.getAttribute('data-points');
-            const comment = commentInput.value.trim();
-            const user = tg?.initDataUnsafe?.user;
-            const userId = user?.id || 123456;
-            const userName = user?.username ? `@${user.username}` : (user?.first_name || "Эко Активист");
-
-            const formData = new FormData();
-            formData.append('user_id', userId);
-            formData.append('username', userName);
-            formData.append('action_type', actionType);
-            formData.append('points', points);
-            formData.append('comment', comment);
-            formData.append('photo', fileInput.files[0]);
-
-            if (userLocation) {
-                formData.append('latitude', userLocation[0]);
-                formData.append('longitude', userLocation[1]);
+            if (!fileInput.files[0]) {
+                notify("Пожалуйста, прикрепите фотографию!");
+                return;
             }
 
             submitBtn.disabled = true;
             submitBtn.innerText = "Отправка...";
 
             try {
-                const res = await fetch(`${SERVER_URL}/api/report`, {
-                    method: 'POST',
-                    body: formData
-                });
+                const opt = actionSelect.options[actionSelect.selectedIndex];
+                const photo = await compressImage(fileInput.files[0]);
+
+                const formData = new FormData();
+                formData.append('init_data', initData);
+                formData.append('username', userName);
+                formData.append('action_type', opt.value);
+                formData.append('points', opt.dataset.points);
+                formData.append('comment', commentInput.value.trim());
+                formData.append('photo', photo, 'photo.jpg');
+                if (userLocation) {
+                    formData.append('latitude', userLocation[0]);
+                    formData.append('longitude', userLocation[1]);
+                }
+
+                const res = await fetch(`${SERVER_URL}/api/report`, { method: 'POST', body: formData });
 
                 if (res.ok) {
-                    alert("Отчёт успешно отправлен!");
+                    notify("Отчёт успешно отправлен!");
                     fileInput.value = "";
                     commentInput.value = "";
                     switchTab('profile');
                 } else {
-                    const errText = await res.text();
-                    alert(`Ошибка сервера (${res.status}): ${errText}`);
+                    let detail = res.statusText;
+                    try { detail = (await res.json()).detail || detail; } catch (_) {}
+                    notify(`Ошибка сервера (${res.status}): ${detail}`);
                 }
             } catch (e) {
-                alert(`Ошибка сети: ${e.message}`);
+                notify(`Ошибка сети: ${e.message}`);
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.innerText = "Отправить на проверку";
@@ -664,7 +673,6 @@
         }
 
         requestLocation();
-        loadProfile();
     </script>
 </body>
-</html>  
+</html>
