@@ -25,9 +25,9 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 # ---------------------------------------------------------------- настройки
-BOT_TOKEN = os.environ["BOT_TOKEN"]          # только из переменных Railway
+BOT_TOKEN = os.environ["BOT_TOKEN"].strip()          # только из переменных Railway
 ADMIN_ID = int(os.environ["ADMIN_ID"])
-WEBAPP_URL = os.getenv("WEBAPP_URL", "")     # адрес index.html (необязательно)
+WEBAPP_URL = os.getenv("WEBAPP_URL", "").strip()     # адрес index.html (необязательно)
 
 # Для Railway: подключите Volume и укажите пути на него, например /data/...
 DB_NAME = os.getenv("DB_PATH", "eco_khujand_v2.db")
@@ -167,17 +167,20 @@ def db_total_users() -> int:
 def verify_init_data(init_data: str) -> Optional[dict]:
     """Проверка подписи Telegram WebApp. Возвращает данные пользователя или None."""
     try:
-        parsed = dict(parse_qsl(init_data, strict_parsing=True))
+        parsed = dict(parse_qsl(init_data, keep_blank_values=True))
         received_hash = parsed.pop("hash")
         check_string = "\n".join(f"{k}={v}" for k, v in sorted(parsed.items()))
         secret = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
         calc_hash = hmac.new(secret, check_string.encode(), hashlib.sha256).hexdigest()
         if not hmac.compare_digest(calc_hash, received_hash):
+            log.warning("initData: подпись не совпала (приложение открыто из другого бота или токен другой?)")
             return None
         if time.time() - int(parsed.get("auth_date", 0)) > 24 * 3600:
+            log.warning("initData: данные устарели, откройте приложение заново")
             return None
         return json.loads(parsed["user"])
-    except Exception:
+    except Exception as e:
+        log.warning("initData: ошибка разбора: %r", e)
         return None
 
 
@@ -225,11 +228,17 @@ async def cmd_start(message: types.Message):
         "Открывай мини-приложение через меню, чтобы начать! 👇"
     )
     markup = None
-    if WEBAPP_URL:
+    if WEBAPP_URL.startswith("https://"):
         markup = InlineKeyboardMarkup(
             inline_keyboard=[[InlineKeyboardButton(text="🌿 Открыть Eco Khujand", web_app=WebAppInfo(url=WEBAPP_URL))]]
         )
-    await message.answer(text, parse_mode="HTML", reply_markup=markup)
+    elif WEBAPP_URL:
+        log.warning("WEBAPP_URL должен начинаться с https://, сейчас: %r", WEBAPP_URL)
+    try:
+        await message.answer(text, parse_mode="HTML", reply_markup=markup)
+    except Exception:
+        log.exception("Не удалось отправить /start с кнопкой")
+        await message.answer(text, parse_mode="HTML")
 
 
 # ---------------------------------------------------------------- API
@@ -392,4 +401,4 @@ async def handle_report_moderation(callback: types.CallbackQuery):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080))) 
