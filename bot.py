@@ -164,8 +164,8 @@ def db_total_users() -> int:
 
 
 # ---------------------------------------------------------------- Telegram initData
-def verify_init_data(init_data: str) -> Optional[dict]:
-    """Проверка подписи Telegram WebApp. Возвращает данные пользователя или None."""
+def verify_init_data(init_data: str):
+    """Проверка подписи Telegram WebApp. Возвращает (данные_пользователя, причина_ошибки)."""
     try:
         parsed = dict(parse_qsl(init_data, keep_blank_values=True))
         received_hash = parsed.pop("hash")
@@ -173,15 +173,13 @@ def verify_init_data(init_data: str) -> Optional[dict]:
         secret = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
         calc_hash = hmac.new(secret, check_string.encode(), hashlib.sha256).hexdigest()
         if not hmac.compare_digest(calc_hash, received_hash):
-            log.warning("initData: подпись не совпала (приложение открыто из другого бота или токен другой?)")
-            return None
-        if time.time() - int(parsed.get("auth_date", 0)) > 24 * 3600:
-            log.warning("initData: данные устарели, откройте приложение заново")
-            return None
-        return json.loads(parsed["user"])
+            return None, "подпись не совпала"
+        age = time.time() - int(parsed.get("auth_date", 0))
+        if age > 24 * 3600:
+            return None, "данные устарели, откройте приложение заново"
+        return json.loads(parsed["user"]), ""
     except Exception as e:
-        log.warning("initData: ошибка разбора: %r", e)
-        return None
+        return None, f"ошибка разбора ({type(e).__name__}: {e}; длина init_data={len(init_data)})"
 
 
 # ---------------------------------------------------------------- FastAPI
@@ -256,9 +254,10 @@ async def api_receive_report(
 ):
     # --- кто отправитель
     if init_data:
-        tg_user = verify_init_data(init_data)
+        tg_user, reason = verify_init_data(init_data)
         if not tg_user:
-            raise HTTPException(401, "Неверные данные Telegram")
+            log.warning("initData отклонён: %s", reason)
+            raise HTTPException(401, f"Неверные данные Telegram: {reason}")
         user_id = int(tg_user["id"])
         username = tg_user.get("username") or tg_user.get("first_name") or username
     elif REQUIRE_INIT_DATA or user_id is None:
