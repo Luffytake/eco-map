@@ -275,7 +275,7 @@
     <div class="content-area">
         <!-- Вкладка 1: Карта -->
         <div id="tab-map" class="tab-content active">
-            <div class="map-legend">🔵 — Урна<br>🟢 — Мусорные баки</div>
+            <div class="map-legend" style="white-space:nowrap;font-size:11px;padding:6px 8px;">🔵 — Урна &nbsp; 🟢 — Мусорные баки<br>🟡 — Стекло &nbsp; 🔴 — Пластик</div>
             <button class="locate-btn" onclick="requestLocation()">📍 Где я?</button>
             <div id="map"></div>
         </div>
@@ -442,7 +442,9 @@
         const baseStyle = { color: "#ffffff", weight: 1.5, opacity: 1, fillOpacity: 0.8 };
         const TYPES = {
             c: { title: 'Мусорные баки', style: { ...baseStyle, radius: 8, fillColor: "#4CAF50" } },
-            u: { title: 'Уличная урна', style: { ...baseStyle, radius: 6, fillColor: "#2196F3" } }
+            u: { title: 'Уличная урна', style: { ...baseStyle, radius: 6, fillColor: "#2196F3" } },
+            g: { title: 'Стекло', style: { ...baseStyle, radius: 9, fillColor: "#FFEB3B" } },
+            p: { title: 'Пластик', style: { ...baseStyle, radius: 9, fillColor: "#F44336" } }
         };
 
         // [широта, долгота, тип (c — баки, u — урна), примечание]
@@ -494,6 +496,10 @@
             [40.278314, 69.613180, 'c', 'Статус: Чисто'],
             [40.277596, 69.611914, 'u', ''],
             [40.295089, 69.619780, 'u', ''],
+            [40.293796, 69.623728, 'p', ''],
+            [40.293712, 69.611287, 'p', ''],
+            [40.303242, 69.630574, 'g', ''],
+            [40.303441, 69.622609, 'g', ''],
         ];
 
         POINTS.forEach(([lat, lng, type, note]) => {
@@ -675,4 +681,4 @@
         requestLocation();
     </script>
 </body>
-</html>
+</html> 
