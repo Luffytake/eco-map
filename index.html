@@ -514,6 +514,60 @@
         let userMarker = null;
         let routingControl = null;
 
+        let watchId = null;
+        let destination = null;
+        let lastRoutedPos = null;
+        let lastRouteTime = 0;
+        let firstFit = false;
+
+        function onPosition(pos) {
+            userLocation = [pos.coords.latitude, pos.coords.longitude];
+            if (userMarker) {
+                userMarker.setLatLng(userLocation);
+            } else {
+                userMarker = L.circleMarker(userLocation, {
+                    radius: 8, fillColor: "#E91E63", color: "#ffffff",
+                    weight: 2, opacity: 1, fillOpacity: 0.9
+                }).addTo(map).bindPopup("<b>Вы здесь</b>");
+                map.setView(userLocation, 16);
+                userMarker.openPopup();
+            }
+
+            if (!destination || !routingControl) return;
+
+            const here = L.latLng(userLocation[0], userLocation[1]);
+            const dest = L.latLng(destination[0], destination[1]);
+
+            // дошли до цели (15 м)
+            if (here.distanceTo(dest) < 15) {
+                map.removeControl(routingControl);
+                routingControl = null;
+                destination = null;
+                notify("Вы пришли! 🎉");
+                return;
+            }
+
+            // камера следует за человеком
+            map.panTo(here, { animate: true });
+
+            // пересчёт маршрута: сдвиг больше 10 м и не чаще раза в 4 сек
+            const now = Date.now();
+            if ((!lastRoutedPos || here.distanceTo(lastRoutedPos) > 10) && now - lastRouteTime > 4000) {
+                lastRoutedPos = here;
+                lastRouteTime = now;
+                routingControl.spliceWaypoints(0, 1, here);
+            }
+        }
+
+        function startWatch() {
+            if (watchId !== null) return;
+            watchId = navigator.geolocation.watchPosition(
+                onPosition,
+                () => notify("Не удалось определить местоположение."),
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 1000 }
+            );
+        }
+
         function requestLocation() {
             if (!navigator.geolocation) {
                 notify("Геолокация не поддерживается вашим устройством/браузером.");
@@ -521,17 +575,9 @@
             }
             navigator.geolocation.getCurrentPosition(
                 (pos) => {
-                    userLocation = [pos.coords.latitude, pos.coords.longitude];
+                    onPosition(pos);
                     map.setView(userLocation, 16);
-                    if (userMarker) {
-                        userMarker.setLatLng(userLocation);
-                    } else {
-                        userMarker = L.circleMarker(userLocation, {
-                            radius: 8, fillColor: "#E91E63", color: "#ffffff",
-                            weight: 2, opacity: 1, fillOpacity: 0.9
-                        }).addTo(map).bindPopup("<b>Вы здесь</b>");
-                    }
-                    userMarker.openPopup();
+                    startWatch();
                 },
                 () => notify("Не удалось определить местоположение."),
                 { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -547,6 +593,11 @@
             map.closePopup();
             if (routingControl) map.removeControl(routingControl);
 
+            destination = [destLat, destLng];
+            lastRoutedPos = L.latLng(userLocation[0], userLocation[1]);
+            lastRouteTime = Date.now();
+            firstFit = false;
+
             routingControl = L.Routing.control({
                 waypoints: [L.latLng(userLocation[0], userLocation[1]), L.latLng(destLat, destLng)],
                 // демо-сервер project-osrm.org умеет только авто, пешеходный маршрут — на сервере OSM
@@ -557,9 +608,18 @@
                 lineOptions: { styles: [{ color: '#4CAF50', opacity: 0.8, weight: 6 }] },
                 addWaypoints: false,
                 draggableWaypoints: false,
-                fitSelectedRoutes: true,
+                fitSelectedRoutes: false,
                 showAlternatives: false
             }).addTo(map);
+
+            // приближаем к маршруту только один раз, дальше камера следует за человеком
+            routingControl.on('routesfound', (e) => {
+                if (firstFit) return;
+                firstFit = true;
+                map.fitBounds(L.latLngBounds(e.routes[0].coordinates), { padding: [40, 40] });
+            });
+
+            startWatch();
         }
 
         // ---------- профиль
@@ -675,5 +735,4 @@
         requestLocation();
     </script>
 </body>
-</html>
- 
+</html>   
